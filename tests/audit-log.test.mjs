@@ -37,6 +37,14 @@ test('audit date bounds, stable pagination and filter choices use the filtered d
  assert.ok(page.body.filters.subjects.every(u=>!Object.hasOwn(u,'email')));
  assert.deepEqual((await h.call('?offset=100')).body.entries,[]);
 }finally{h.close();}});
+
+test('optional blank audit dates behave as no filter, including an empty audit history',async()=>{const h=await fixture();try{
+ const blank=await h.call('?actorId=&subjectUserId=&characterId=&action=&q=&from=&to=&limit=50&offset=0');assert.equal(blank.status,200);assert.equal(blank.body.total,8);
+ const spaces=await h.call('?from=%20&to=%20');assert.equal(spaces.status,200);assert.equal(spaces.body.total,8);
+ h.DB.raw.prepare('DELETE FROM audit').run();const empty=await h.call('?from=&to=');assert.equal(empty.status,200);assert.equal(empty.body.total,0);assert.deepEqual(empty.body.entries,[]);
+ assert.equal((await h.call('?from=2026-02-30')).status,400);
+ assert.equal((await h.call('?from=&from=')).status,400);
+}finally{h.close();}});
 test('audit literal search, SQL-looking IDs and malformed legacy JSON are safe and leave evidence untouched',async()=>{const h=await fixture();try{
  const before=h.DB.raw.prepare('SELECT * FROM audit ORDER BY id').all();
  const percent=await h.call('?q=%25');assert.equal(percent.status,200);assert.deepEqual(percent.body.entries.map(e=>e.id),['c-adjust']);
@@ -56,7 +64,7 @@ test('audit access fails closed for missing or view-only ACL while allowing a de
  assert.equal((await h.call()).headers.get('cache-control'),'no-store');
 }finally{h.close();}});
 test('audit validates dates, duplicate parameters, bounded search and pagination',async()=>{const h=await fixture();try{
- for(const query of['?from=2026-02-30','?from=2026-11-13&to=2026-11-12','?to=','?from=0000-01-01','?limit=0','?limit=101','?limit=1.5','?offset=-1','?offset=1000001','?action=a&action=b','?q=a&q=b','?unknown=1','?q='+encodeURIComponent('x'.repeat(121))]){const r=await h.call(query);assert.equal(r.status,400,query);assert.equal(r.body.code,'invalid_filter');}
+ for(const query of['?from=2026-02-30','?from=2026-11-13&to=2026-11-12','?to=not-a-date','?from=0000-01-01','?limit=0','?limit=101','?limit=1.5','?offset=-1','?offset=1000001','?action=a&action=b','?q=a&q=b','?unknown=1','?q='+encodeURIComponent('x'.repeat(121))]){const r=await h.call(query);assert.equal(r.status,400,query);assert.equal(r.body.code,'invalid_filter');}
  assert.equal((await h.call('?from=0001-01-01&to=9999-12-31')).status,200);
 }finally{h.close();}});
 

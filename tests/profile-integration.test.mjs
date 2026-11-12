@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import worker from '../dist/server/index.js';
 import {createD1} from './d1-adapter.mjs';
 import {applicationSchema} from './app-schema.mjs';
+import {uploadTestCatalog} from './catalog-fixture.mjs';
 const origin='https://guild.test';
 test('bundled character profile shares authentication, equipment references, award history and audited ownership',async()=>{
  const DB=createD1(await applicationSchema());
@@ -10,6 +11,7 @@ test('bundled character profile shares authentication, equipment references, awa
  const register=async(name)=>{const r=await call('/api/register','POST',{name,email:name+'@profile.test',password:'Profile integration password123!'});assert.equal(r.status,201);return{...r.body,cookie:r.headers.get('set-cookie').split(';')[0]};};
  try{
   const officer=await register('Officer'),member=await register('Member');
+  await uploadTestCatalog(worker,DB,origin,officer);
   const requested=await call('/api/characters','POST',{name:'Profilehero',level:85,className:'Monk'},member);assert.equal(requested.status,201);
   const claim=requested.body.claim;assert.ok(claim?.id,JSON.stringify(requested.body));
   assert.equal((await call('/api/claims/'+claim.id+'/approve','POST',{kind:'main'},officer)).status,200);

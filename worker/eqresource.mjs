@@ -21,6 +21,8 @@ const STAT_NAMES = {
 };
 
 export function normalizeItemName(value) {
+  // Prefixes and punctuation distinguish real EQ variants. Never drop them to
+  // manufacture an automatic match from a broader/basic search result.
   return typeof value === 'string' ? value.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase() : '';
 }
 function cleanText(value) { return String(value ?? '').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g,'').trim(); }
@@ -102,13 +104,26 @@ export function discoverNameSearchForm(html,baseUrl=EQ_ORIGIN+'/itemsearch.php')
     const labels=[...content.matchAll(/<label\b([^>]*)>([\s\S]*?)<\/label\s*>/gi)].map(m=>({attrs:attributes(m[1]),text:normalizeItemName(visibleText(m[2])).replace(/:$/,'')}));
     let named=fields.filter(i=>labels.some(l=>l.text==='item name'&&l.attrs.for&&l.attrs.for===i.id));
     if(!named.length&&fields.length===1&&/\bitem\s+name\b/i.test(visibleText(content)))named=fields;
-    if(named.length!==1)continue;
     const method=(form.method||'GET').toUpperCase();if(!['GET','POST'].includes(method))continue;
     let action;try{action=sourceUrl(form.action||baseUrl,baseUrl);}catch{continue;}
-    if(action.pathname!=='/itemsearch.php')continue;
+    // The observed Basic Item Search form posts to dosearch.php; itemsearch.php
+    // is its landing/result page. Never route through the general site search.
+    if(action.pathname!=='/itemsearch.php'&&!(method==='POST'&&action.pathname==='/dosearch.php'))continue;
+    // In the live basic form, Item Name is a table-cell label outside <form>.
+    // Recognize its observed contract rather than guessing a query parameter.
+    if(!named.length&&method==='POST'&&action.pathname==='/dosearch.php'&&fields.length===1&&fields[0].id==='name'&&fields[0].name==='name'&&inputs.some(i=>i.type?.toLowerCase()==='hidden'&&i.id==='searched'&&i.name==='searched'))named=fields;
+    if(named.length!==1)continue;
     const params=[];
-    for(const input of inputs){if(!input.name||'disabled'in input)continue;const type=(input.type||'text').toLowerCase();if(type==='hidden')params.push([input.name,input.value||'']);}
-    const submits=inputs.filter(i=>i.name&&!('disabled'in i)&&['submit','image'].includes((i.type||'').toLowerCase()));
+    for(const input of inputs){if(!input.name||'disabled'in input)continue;const type=(input.type||'text').toLowerCase();if(type==='hidden'||(['checkbox','radio'].includes(type)&&'checked'in input))params.push([input.name,input.value??(type==='hidden'?'':'on')]);}
+    for(const selectMatch of content.matchAll(/<select\b([^>]*)>([\s\S]*?)<\/select\s*>/gi)){
+      const select=attributes(selectMatch[1]);if(!select.name||'disabled'in select)continue;
+      const choices=[...selectMatch[2].matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option\s*>/gi)].map(m=>({...attributes(m[1]),text:visibleText(m[2])})).filter(option=>!('disabled'in option));
+      let selected=choices.filter(option=>'selected'in option);if(!('multiple'in select)&&!selected.length)selected=choices.slice(0,1);if(!('multiple'in select)&&selected.length>1)throw new SourceError('source_layout_unrecognized','The basic item search has ambiguous default options.');
+      for(const option of selected)params.push([select.name,option.value??option.text]);
+    }
+    const buttons=[...content.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button\s*>/gi)].map(m=>({...attributes(m[1]),type:attributes(m[1]).type||'submit'}));
+    const submits=[...inputs,...buttons].filter(i=>i.name&&!('disabled'in i)&&['submit','image'].includes((i.type||'').toLowerCase()));
+    if(submits.length>1)continue;
     if(submits.length===1&&submits[0].type.toLowerCase()==='submit')params.push([submits[0].name,submits[0].value||'']);
     forms.push({action:action.href,method,nameField:named[0].name,params});
   }
@@ -172,10 +187,27 @@ function parseClasses(value){
 }
 function parseSlots(value){if(!value)return null;const parts=value.toUpperCase().split(/[,;/\s]+/).filter(Boolean);return parts.length&&parts.every(p=>SLOT_ALIASES[p])?[...new Set(parts.map(p=>SLOT_ALIASES[p]))]:null;}
 
+function itemPostContent(html){
+  // Live item pages place the source collector's three item tables in the first
+  // .postcontent. Its explicit boundary excludes the page H1 and later comments.
+  // Walk balanced tags, rather than truncating at the first nested </div>.
+  const tags=/<\/?([a-z][a-z0-9:-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;let match;
+  while((match=tags.exec(html))){
+    if(/^<\//.test(match[0]))continue;
+    const attr=attributes(match[0].slice(match[1].length+1,-1));
+    if(!(attr.class||'').split(/\s+/).includes('postcontent'))continue;
+    const name=match[1].toLowerCase(),start=tags.lastIndex;let depth=1,next;
+    while((next=tags.exec(html))){if(next[1].toLowerCase()!==name)continue;if(/^<\//.test(next[0]))depth--;else if(!/\/\s*>$/.test(next[0]))depth++;if(depth===0)return{html:html.slice(start,next.index),scoped:true};}
+    throw new SourceError('source_layout_unrecognized','The source item post boundary was incomplete.');
+  }
+  return{html,scoped:false};
+}
+
 export function parseItemDetails(html,itemId,{retrievedAt=new Date().toISOString()}={}) {
   itemId=positiveId(itemId);
   // Page chrome can contain filters named Class/Slot. Never treat those as item fields.
-  const itemMarkup=withoutInactiveMarkup(html).replace(/<(head|nav|header|footer)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'');
+  const post=itemPostContent(withoutInactiveMarkup(html));
+  const itemMarkup=post.html.replace(/<(head|nav|header|footer)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'');
   const plain=visibleText(itemMarkup),lines=plain.split(/\r?\n/).map(l=>l.replace(/[ \f\v]+/g,' ').trim()).filter(Boolean),tokens=lines.flatMap(l=>l.split('\t').map(v=>v.trim()).filter(Boolean));
   const lootRecords=[...plain.matchAll(/Advanced\s+Loot\s*:\s*(\d+)\^(\d+)\^([^\r\n\t]+)/gi)],loot=lootRecords[0];
   if(lootRecords.length!==1||Number(loot[1])!==itemId)throw new SourceError('source_layout_unrecognized','The item page did not identify the requested item safely.');
@@ -186,6 +218,7 @@ export function parseItemDetails(html,itemId,{retrievedAt=new Date().toISOString
   const start=starts[0],classIndex=tokens.findIndex((t,i)=>i>start&&i<lootIndex&&/^Class\s*:/i.test(t));
   if(classIndex<0)throw new SourceError('source_layout_unrecognized','The item class field was not found after its heading.');
   let end=tokens.findIndex((t,i)=>i>classIndex&&(/By\s*:\s*EQResource Item Collector|Questions\?\s*Comments\?|^Comments?$|^Copyright\b|^Privacy Policy\b/i.test(t)));
+  if(end<0&&post.scoped)end=tokens.length;
   if(end<0||end<=lootIndex)throw new SourceError('source_layout_unrecognized','The item panel boundary could not be identified safely.');
   const panel=tokens.slice(start,end);
   for(const label of ['Class','Race','Slot'])if(panel.filter(t=>new RegExp('^'+label+'\\s*:','i').test(t)).length>1)throw new SourceError('source_layout_unrecognized','The item eligibility fields were ambiguous.');

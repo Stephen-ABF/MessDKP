@@ -53,3 +53,7 @@ Dates must be actual calendar dates with four-digit years from0001 through9999; 
 GET /api/raids/:raidId/ticks/:tickId returns {raid,tick,attendance}, constrained to that exact raid and tick. The source time and filename identify the capture; raw uploaded text remains private. Authenticated members may read this view.
 
 GET /api/reports/mains/:characterId/loot returns {characterId,loot}, with each closed award containing auctionId,itemId,itemName,sourceUrl,winningBid,price,status,confirmedAt,closedAt. Open or future-deadline results are excluded. Pending awards label price as proposed; confirmed awards show the actual charge. Item links open cache details and existing guild appearances/bids history. These reads never charge DKP.
+
+## Version0.6 overview table
+
+The profile table separates Raid, Date, Total dumps and Attendance. Zero-check-in nights are omitted from this table but remain in eligible denominator percentages. A member may jump from a partially attended own raid to the Missing attendance request choices; fully attended nights and other characters have no request control.

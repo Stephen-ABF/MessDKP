@@ -1,39 +1,33 @@
-# Guild Desk local item catalog v0.2
+# Guild Desk uploaded item catalog
 
-The catalog is stored in Guild Desk's database. EQResource is an optional source of item identity and details; browsing a cached item does not contact it. This catalog is partial. Loot text alone does not include full item statistics, and no complete game-file extraction or collector-import implementation is claimed.
+The running application uses officer-uploaded SODEQ/EQItems data. It does not search, scrape, refresh, or fetch images from EQResource or any other item site. EQResource URLs are ordinary item-ID links that a user can choose to open. Earlier source adapters and their parser tests are historical code, not the production data source.
 
-Two bundled, partial source references were verified from EQResource page/indexed text:81773 Blood of the Dhampyre and44354 Ancient Pearlescent Mask. Known stats, restrictions, flags, Advanced Loot strings, and source dates are factual. They are examples, not a claim of progression-server drop availability. Retrieval time does not establish the game version. No image URL is guessed from an icon ID.
+Upload the original `items.txt.gz` or a small original headered `items.txt` in Officer workspace → Item references. The main dump is available at https://items.sodeq.org/download.php. Uploading a newer file replaces the active searchable catalog only after every row validates. Existing auctions, attendance, balances, item history and profile selections are retained. See CATALOG.md for format, import limits, provenance and setup.
 
-## Storage and integration
+## Storage and access
 
-Apply migration0000 followed by0001. The second adds full_details_json, icon_url, metadata_complete, and source_status_json. No request creates tables. build.mjs injects the source adapter into createItemApi. cacheItemDetails and getCachedItemDetails are shared with boss loot preparation.
+Migration 0008 adds staged catalogs and an atomic active-catalog pointer. Catalog imports do not bulk-rewrite `item_references`: selected item IDs are copied there when used by equipment or loot. Reads use the active upload; a previously saved reference can still be shown when its ID is absent from the active upload, with an explicit retained-data status. Previously published auction names, classes, results and prices remain historical snapshots.
 
-Reads require authentication and use only cached data. Mutations additionally require officer/admin, exact same Origin, and the session X-CSRF-Token. An unresolved manager identity cannot overwrite verified facts. Successful snapshots clear normalized fields explicitly returned as unknown. Omitted fields in an identity-only lookup retain cached details. A failed source request retains the cached record with an explicit unavailable status. An incomplete response cannot replace an earlier complete record; its status explains that the earlier record was retained.
+The main Worker enforces the configured items ACL. Catalog management requires item read/write access; mutations additionally require exact same Origin and the session X-CSRF-Token. Members can see permitted item details in profiles and auctions without gaining catalog administration access.
 
 ## API
 
 | Route | Behavior |
-|---|---|
-| GET /api/items?q=&class=&slot=&limit=50 | Search local names/ID and filter class/slot. Returns items,total,scope,catalogComplete:false,liveSyncAvailable:false,sourceNotice. Limit1-100. Explicit ALL matches a class; unknown classes do not. No writes. |
-| POST /api/items/lookup | JSON {itemId}; accepts positive integer, exact HTTPS EQResource URL, or itemID^iconID^name. Seeds the two partial references. Unknown ID creates unresolved reference:202. No external fetch. |
-| GET /api/items/:itemId | {item,sourceStatus}; cache-only details,404 if unknown. |
-| POST /api/items/:itemId/refresh | Explicit officer refresh. Returns {item,sourceStatus}. Source failure returns retained item plus unavailable status, never complete metadata. |
+| --- | --- |
+| GET /api/items?q=&class=&slot=&limit=50 | Search uploaded names or exact ID and filter classes/slots. Returns items,total,scope,catalog,revision and sourceNotice. Limit 1–100. No writes or network calls. |
+| POST /api/items/search | JSON `{name}`; exact complete-name search in the upload. A unique exact ID is hydrated into saved references; multiple IDs with the same name require selection. Prefixes remain significant. |
+| POST /api/items/lookup | JSON `{itemId}`; accepts an integer, exact HTTPS EQResource item URL, or itemID^iconID^name. Hydrates an ID present in the upload; otherwise returns an honest identity-only reference (202). No bundled starter data or external fetch. |
+| GET /api/items/:itemId | Active uploaded details, or previously saved retained reference; 404 if unknown. |
+| POST /api/items/:itemId/refresh | Rehydrate from the active uploaded file. This compatibility route never contacts an external site. |
 
-Canonical item fields: itemId,name,classes,races,slots,stats,flags,advancedLoot,sourceUrl,sourceCheckedAt,sourceUpdatedAt,retrievedAt,verificationMethod,metadataStatus,iconUrl,metadataComplete,details,sourceStatus. Details contains ordered fields[{label,value}], effects[], augments[], lore, sourceText. Unknown values remain unknown, never inferred zero or ALL. The dialog shows every available field, beyond the normalized stat subset. Source text is plain text, never executable markup.
+Canonical item fields include itemId,name,classes,races,slots,stats,flags,advancedLoot,sourceUrl,sourceCheckedAt,sourceUpdatedAt,retrievedAt,verificationMethod,metadataStatus,iconId,iconUrl,metadataComplete,details,sourceStatus and catalog. `sourceStatus.status` is `uploaded` for current file data. `metadataStatus:'verified_reference'` means an imported item identity and supplied fields were validated; it does not mean the current live game was inspected. The file hash, uploader, optional source date and counts are recorded for each import.
 
-The source adapter always sets metadataComplete:false because raw live HTML/completeness remains unvalidated. See EQRESOURCE.md for parser limits and synthetic fixture provenance. Source image URLs require HTTPS, a known EQResource host, no credentials/port, and an image-file extension. No source JavaScript is embedded.
+## Item panes
 
-## Guild item history
+The compact item pane groups AC/HP/mana/endurance, required/recommended levels, attributes and heroics, saves, and regeneration/combat bonuses. Weight and tribute remain preserved source fields but are omitted from the compact stat display. Flags, slots, classes, races, effect/focus entries and augmentation slots are shown. The full details view can show every supplied field, including unknown fields. Source text is always plain text, never executable markup.
 
-GET /api/loot/items/:itemId/history returns published appearances, total quantities, and auction results. Drafts do not count. Legacy auctions and boss batches count once. Active sealed bids and awards remain hidden; history reveals full results only after closed settlement. See LOOT.md for response and limits.
+Effect IDs and names are imported from the dump. If a spell name is missing, the pane shows the known kind and spell ID rather than inventing an effect or description. Main-file data does not provide full spell descriptions or icon image files: `metadataComplete` remains false and `iconUrl` is null. No image URL is guessed from an icon ID. Optional lore/charm files and a local icon/spell dataset are not yet imported.
 
-## Completing the catalog
+## Guild history
 
-A complete item-data source still needs validation. Local names/IDs do not supply stats. An external collector describes server-sent records saved as items.jsonl (https://norrathcodex.com/collector). Current-client compatibility, field mappings, provenance and item variants must be checked before adopting that output. No collector has been run and no importer for its format is included in0.2.0.
-## EQ-style profile and hover views
-
-The hover and full details share a compact item pane: flags, slots, classes, races, normalized recorded stats, all known effects/focus, augment slots and expandable remaining source fields. Only validated source images appear. The partial Blood of Dhampyre reference includes Prismatic Ward VIII, Improved Dodge V and Corrupted Sylvan's Rot II from its EQResource item record; legacy copies of that known starter reference receive the same verified fields without a live request. Unknown items and failed refreshes do not inherit unrelated effects or claim complete metadata. Profile selections reuse this same pane.
-
-## Compact item sections
-
-The item pane separates AC/HP/mana/endurance, required/recommended levels, attributes with heroic values, saves, and regeneration/combat bonuses. Weight and tribute remain source facts but are omitted from the compact stat display. Effects/focus and augment information remain visible. Effect-specific spell-description hover is a future feature; this version does not claim a validated EQResource/Lucy spell catalog. Officer catalog management is separate from member profile/auction item details.
+GET /api/loot/items/:itemId/history returns published appearances, total quantities and closed auction results. Drafts do not count, legacy/manual auctions count once, and active sealed bids remain hidden. See LOOT.md.

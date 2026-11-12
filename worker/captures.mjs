@@ -29,6 +29,11 @@ export function createCaptureApi({parseLootChannelLine,handleLootApi,clock=()=>D
   if(!row)captureFail(401,'capture_token','This capture pairing token is invalid.');
   if(row.status!=='open'||row.expires_at_ms<=clock())captureFail(410,'capture_closed','This capture is finished, revoked, or expired. Create a new capture for the next boss.');return row;
  }
+ async function trustedDeviceSession(db,captureId,accessEnabled){
+  const row=await captureSql(db,`SELECT s.* FROM capture_sessions s WHERE s.id=? AND ${creatorAllowed('s.created_by',accessEnabled)}`,captureId).first();
+  if(!row)captureFail(401,'capture_token','Capture access is unavailable.');
+  if(row.status!=='open'||row.expires_at_ms<=clock())captureFail(410,'capture_closed','This capture is no longer open. Pending events are retained.');return row;
+ }
  async function ingest(request,db,row,accessEnabled=false){
   const input=await captureBody(request);
   if(typeof input.watcherId!=='string'||!/^[-a-zA-Z0-9_]{8,100}$/.test(input.watcherId))captureFail(400,'validation','A stable companion watcher ID is required.');
@@ -83,7 +88,7 @@ export function createCaptureApi({parseLootChannelLine,handleLootApi,clock=()=>D
   const path=new URL(request.url).pathname,native=path.startsWith('/api/companion/');if(!native&&path!=='/api/captures'&&!path.startsWith('/api/captures/'))return null;
   try{
    if(!env.DB)captureFail(503,'database_unavailable','The capture database is unavailable.');
-   if(native){const row=await tokenSession(request,env.DB,!!env.FEATURE_ACCESS);if(path==='/api/companion/session'&&request.method==='GET')return captureJson({session:captureShape(row)});if(path==='/api/companion/events'&&request.method==='POST')return await ingest(request,env.DB,row,!!env.FEATURE_ACCESS);captureFail(405,'method_not_allowed','Companion endpoint not supported.');}
+   if(native){const row=context.nativeCaptureId?await trustedDeviceSession(env.DB,context.nativeCaptureId,!!env.FEATURE_ACCESS):await tokenSession(request,env.DB,!!env.FEATURE_ACCESS);if(path==='/api/companion/session'&&request.method==='GET')return captureJson({session:captureShape(row)});if(path==='/api/companion/events'&&request.method==='POST')return await ingest(request,env.DB,row,!!env.FEATURE_ACCESS);captureFail(405,'method_not_allowed','Companion endpoint not supported.');}
    if(!context.user?.id)captureFail(401,'unauthorized','Sign in to manage live loot capture.');if(context.user.role!=='admin')captureFail(403,'forbidden','Officer access is required for live loot capture.');if(request.method!=='GET')mutation(request,context);
    if(path==='/api/captures'&&request.method==='GET'){
     const rows=await captureAll(captureSql(env.DB,`SELECT s.*,COUNT(e.event_id) AS event_count,COALESCE(SUM(e.ignored),0) AS ignored_count,COALESCE(SUM(CASE WHEN e.ignored=0 THEN e.item_count ELSE 0 END),0) AS item_count,COALESCE(SUM(CASE WHEN e.ignored=0 THEN e.warning_count ELSE 0 END),0) AS warning_count FROM capture_sessions s LEFT JOIN capture_events e ON e.capture_id=s.id GROUP BY s.id ORDER BY s.created_at DESC,s.id LIMIT 100`));return captureJson({sessions:rows.map(r=>({...captureShape(r),eventCount:r.event_count,ignoredCount:r.ignored_count,itemCount:r.item_count,warningCount:r.warning_count}))});

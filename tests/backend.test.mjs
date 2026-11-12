@@ -70,9 +70,9 @@ test('concurrent retries and ownership claims remain idempotent and ledger priva
  const ownerClaim=owner===one.user.id?q1:q2;await Promise.all([h.call(`/api/claims/${ownerClaim.id}/approve`,'POST',{kind:'main'},admin),h.call(`/api/claims/${ownerClaim.id}/approve`,'POST',{kind:'main'},admin)]);assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM ledger').get().n,1);
  assert.equal(h.DB.raw.prepare("SELECT COUNT(*) n FROM audit WHERE action='claim_rejected'").get().n,1);assert.equal(h.DB.raw.prepare("SELECT COUNT(*) n FROM audit WHERE action='claim_approved'").get().n,1);assert.equal(h.DB.raw.prepare("SELECT COUNT(*) n FROM claims WHERE status='pending'").get().n,0);
 }finally{h.close();}});
-test('class conflicts are warnings and never overwrite the approved profile',async()=>{const h=harness();try{
+test('persona classes produce no warning and never overwrite the approved profile',async()=>{const h=harness();try{
  const admin=await register(h,'owner@guild.test','Owner'),r=await raid(h,admin);await importFiles(h,admin,r,[file('180515',[['Alpha','Bard']])]);const alpha=(await h.call('/api/characters','GET',undefined,admin)).body.characters[0];const q=await claim(h,admin,alpha.id);await h.call(`/api/claims/${q.id}/approve`,'POST',{kind:'main'},admin);
- const preview=await importFiles(h,admin,r,[file('182058',[['Alpha','Enchanter']])],false);assert.equal(preview.body.files[0].warnings.length,1);assert.match(preview.body.files[0].warnings[0],/stored metadata is unchanged/);
+ const preview=await importFiles(h,admin,r,[file('182058',[['Alpha','Enchanter']])],false);assert.deepEqual(preview.body.files[0].warnings,[]);
  await importFiles(h,admin,r,[file('182058',[['Alpha','Enchanter']])]);assert.equal((await h.call('/api/characters','GET',undefined,admin)).body.characters[0].className,'Bard');assert.equal((await h.call('/api/dashboard','GET',undefined,admin)).body.balance,10);
 }finally{h.close();}});
 

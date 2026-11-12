@@ -5,6 +5,7 @@ import { openPersistentD1 } from './local/d1.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 export const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
+export const MAX_CATALOG_REQUEST_BYTES = 32 * 1024 * 1024 + 65536;
 export function configuredPort(value = process.env.PORT ?? '4173') {
  if (!/^\d+$/.test(String(value))) throw new Error('PORT must be a whole number from 1 through 65535.');
  const port = Number(value);
@@ -35,11 +36,13 @@ export async function createLocalServer({ databasePath = process.env.GUILD_DESK_
    const origin = requestOrigin(incoming.headers.host,activePort);
    if (!origin || !incoming.url?.startsWith('/') || incoming.url.startsWith('//')) { sendError(outgoing,400,'Use the local Guild Desk address.'); incoming.resume(); return; }
    const declaredSize = incoming.headers['content-length'];
-   if (declaredSize !== undefined && (!/^\d+$/.test(declaredSize) || Number(declaredSize) > MAX_REQUEST_BYTES)) { sendError(outgoing,413,'Request exceeds the 6 MiB limit.'); incoming.resume(); return; }
+   const catalogUpload=incoming.method==='POST'&&new URL(incoming.url,origin).pathname==='/api/catalog/import';
+   const requestLimit=catalogUpload?MAX_CATALOG_REQUEST_BYTES:MAX_REQUEST_BYTES,limitMessage=catalogUpload?'Catalog upload exceeds the 32 MiB file limit.':'Request exceeds the 6 MiB limit.';
+   if (declaredSize !== undefined && (!/^\d+$/.test(declaredSize) || Number(declaredSize) > requestLimit)) { sendError(outgoing,413,limitMessage); incoming.resume(); return; }
    const chunks=[];let size=0;
    for await (const chunk of incoming.iterator({destroyOnReturn:false})) {
     size+=chunk.length;
-    if(size>MAX_REQUEST_BYTES){sendError(outgoing,413,'Request exceeds the 6 MiB limit.');incoming.resume();return;}
+    if(size>requestLimit){sendError(outgoing,413,limitMessage);incoming.resume();return;}
     chunks.push(chunk);
    }
    const headers=new Headers();

@@ -68,3 +68,31 @@ test('v0.4 upgrade backfills evidenced eligibility and access templates without 
   assert.equal(db.prepare('SELECT COUNT(*) n FROM character_equipment').get().n,0);assert.equal(db.prepare('SELECT COUNT(*) n FROM access_operation_guards').get().n,0);
  }finally{db.close();}
 });
+
+test('saved companion device migration preserves an existing manual capture and adds no device credentials',async()=>{
+ const db=new DatabaseSync(':memory:');
+ const apply=async name=>{for(const statement of (await readFile(new URL('../drizzle/'+name,import.meta.url),'utf8')).split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))db.prepare(statement).run();};
+ try{
+  for(const name of ['0000_initial.sql','0001_item_catalog_boss_loot.sql','0002_live_loot_capture.sql','0003_assignment_history.sql','0004_character_equipment.sql','0005_attendance_eligibility.sql','0006_access_profiles.sql'])await apply(name);
+  db.exec("INSERT INTO users VALUES('owner','owner@fixture.test','Owner','x','x','admin','2026-11-12'); INSERT INTO capture_sessions(id,boss_name,created_by,channel_name,senders_json,token_hash,created_at,expires_at_ms,watcher_id) VALUES('old','Existing boss','owner','abfloot','[]','fixture-old-hash','2026-11-12',9999999999999,'fixture-watcher');");
+  const before=db.prepare('SELECT * FROM capture_sessions').get();await apply('0007_companion_devices.sql');
+  assert.deepEqual(db.prepare('SELECT * FROM capture_sessions').get(),before);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM companion_devices').get().n,0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM companion_device_guards').get().n,0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM ledger').get().n,0);
+ }finally{db.close();}
+});
+
+test('catalog and inventory migrations preserve existing gear, accounts and exact DKP without importing any dataset',async()=>{
+ const db=new DatabaseSync(':memory:');
+ const apply=async name=>{for(const statement of(await readFile(new URL('../drizzle/'+name,import.meta.url),'utf8')).split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))db.prepare(statement).run();};
+ try{
+  for(const name of ['0000_initial','0001_item_catalog_boss_loot','0002_live_loot_capture','0003_assignment_history','0004_character_equipment','0005_attendance_eligibility','0006_access_profiles','0007_companion_devices'])await apply(name+'.sql');
+  db.exec("INSERT INTO users VALUES('owner','owner@fixture.invalid','Owner','fixture','fixture','admin','2026-11-12'); INSERT INTO characters VALUES('hero','hero','Hero',100,'Bard','Raider','main','owner','2026-11-12'); INSERT INTO item_references(item_id,name,source_url,retrieved_at,verification_method,metadata_status) VALUES(1,'Existing gear','https://items.eqresource.com/items.php?id=1','now','fixture','unresolved'); INSERT INTO character_equipment VALUES('hero','head',1,'reference','now','owner','old-gear'); INSERT INTO ledger VALUES('credit','hero',NULL,-7,'Existing balance','owner','now','credit-key');");
+  const gear=db.prepare('SELECT * FROM character_equipment').all(),ledger=db.prepare('SELECT * FROM ledger').all();
+  await apply('0008_uploaded_item_catalog.sql');await apply('0009_inventory_imports.sql');
+  assert.deepEqual(db.prepare('SELECT * FROM character_equipment').all(),gear);assert.deepEqual(db.prepare('SELECT * FROM ledger').all(),ledger);assert.equal(db.prepare('SELECT COUNT(*) n FROM users').get().n,1);
+  for(const table of ['catalog_imports','catalog_items','inventory_imports','inventory_equipment_augments'])assert.equal(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,0);
+  assert.deepEqual({...db.prepare('SELECT active_import_id,revision FROM catalog_state').get()},{active_import_id:null,revision:0});
+ }finally{db.close();}
+});

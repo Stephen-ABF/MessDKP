@@ -91,7 +91,7 @@ async function importDumps(request, db, user, raidId) {
  if(files.some(file=>file.guildKey!==scope.guildKey||file.serverKey!==scope.serverKey))fail(409,'scope_conflict','One import batch must contain attendance from a single guild and server.');
  const boundScope=await sql(db,'SELECT guild_key,server_key FROM import_scope WHERE id=1').first();
  if(boundScope&&(boundScope.guild_key!==scope.guildKey||boundScope.server_key!==scope.serverKey))fail(409,'scope_conflict','These dumps belong to another guild or server. This site is already bound to its first committed attendance source.');
- const existingChars = new Map((await all(sql(db,'SELECT name_key,class_name,kind,owner_id FROM characters'))).map(c=>[c.name_key,c]));
+ const existingChars = new Map((await all(sql(db,'SELECT name_key,kind,owner_id FROM characters'))).map(c=>[c.name_key,c]));
  const seen = new Map(); const previews=[];
  for (const file of files) {
   file.contentHash=await hash(file.normalized);
@@ -99,7 +99,7 @@ async function importDumps(request, db, user, raidId) {
   if (existing&&(existing.raid_id!==raidId||existing.content_hash!==file.contentHash)) fail(409,'snapshot_conflict','A capture with this filename time has different contents or belongs to another raid. Ask an officer to review it.');
   file.duplicate=Boolean(existing); seen.set(file.sourceKey,{raid_id:raidId,content_hash:file.contentHash});
   const warnings=[]; let eligibleMains=0,unclaimed=0,alts=0;
-  for (const row of file.rows) {const c=existingChars.get(row.key);if(c?.kind==='main'&&c.owner_id)eligibleMains++;else if(c?.kind==='alt')alts++;else unclaimed++;if(c&&c.class_name!==row.className)warnings.push(`${row.name}: imported class ${row.className} differs from stored class ${c.class_name}; stored metadata is unchanged.`);}
+  for (const row of file.rows) {const c=existingChars.get(row.key);if(c?.kind==='main'&&c.owner_id)eligibleMains++;else if(c?.kind==='alt')alts++;else unclaimed++;}
   previews.push({name:file.name,sourceTime:file.sourceTime,rowCount:file.rows.length,status:file.duplicate?'duplicate':'new',eligibleMains,unclaimed,alts,warnings});
  }
  if (input.commit!==true) return json({preview:true,files:previews,totalRows:files.reduce((n,f)=>n+f.rows.length,0)});
@@ -110,7 +110,7 @@ async function importDumps(request, db, user, raidId) {
   const tickId=id(), rows=JSON.stringify(file.rows);
   statements.push(sql(db,`INSERT INTO ticks(id,raid_id,source_key,file_name,source_time,content_hash,raw_text,row_count,created_at,operation_id) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(source_key) DO UPDATE SET source_key=CASE WHEN ticks.content_hash=excluded.content_hash AND ticks.raid_id=excluded.raid_id THEN ticks.source_key ELSE NULL END`,tickId,raidId,file.sourceKey,file.name,file.sourceTime,file.contentHash,file.raw,file.rows.length,at,operation));
   statements.push(sql(db,`INSERT INTO characters(id,name_key,name,level,class_name,guild_rank) SELECT lower(hex(randomblob(16))),json_extract(value,'$.key'),json_extract(value,'$.name'),json_extract(value,'$.level'),json_extract(value,'$.className'),json_extract(value,'$.rank') FROM json_each(?) WHERE EXISTS(SELECT 1 FROM ticks WHERE id=? AND operation_id=?) ON CONFLICT(name_key) DO NOTHING`,rows,tickId,operation));
-  statements.push(sql(db,`INSERT INTO attendance(id,tick_id,character_id,class_name,zone,status,dkp) SELECT lower(hex(randomblob(16))),?,c.id,json_extract(j.value,'$.className'),json_extract(j.value,'$.zone'),CASE WHEN c.kind='alt' THEN 'ineligible' ELSE 'pending' END,? FROM json_each(?) j JOIN characters c ON c.name_key=json_extract(j.value,'$.key') WHERE EXISTS(SELECT 1 FROM ticks WHERE id=? AND operation_id=?) ON CONFLICT(tick_id,character_id) DO NOTHING`,tickId,raid.rate,rows,tickId,operation));
+  statements.push(sql(db,`INSERT INTO attendance(id,tick_id,character_id,class_name,zone,status,dkp) SELECT lower(hex(randomblob(16))),?,c.id,c.class_name,json_extract(j.value,'$.zone'),CASE WHEN c.kind='alt' THEN 'ineligible' ELSE 'pending' END,? FROM json_each(?) j JOIN characters c ON c.name_key=json_extract(j.value,'$.key') WHERE EXISTS(SELECT 1 FROM ticks WHERE id=? AND operation_id=?) ON CONFLICT(tick_id,character_id) DO NOTHING`,tickId,raid.rate,rows,tickId,operation));
   statements.push(sql(db,`INSERT INTO ledger(id,character_id,attendance_id,amount,reason,actor_id,created_at,operation_id) SELECT lower(hex(randomblob(16))),a.character_id,a.id,a.dkp,'Attendance tick',?,?,? FROM attendance a JOIN characters c ON c.id=a.character_id WHERE a.tick_id=? AND c.kind='main' AND c.owner_id IS NOT NULL AND EXISTS(SELECT 1 FROM ticks WHERE id=? AND operation_id=?) ON CONFLICT(attendance_id) DO NOTHING`,user.id,at,operation,tickId,tickId,operation));
   statements.push(sql(db,`UPDATE attendance SET status='credited' WHERE tick_id=? AND EXISTS(SELECT 1 FROM ledger l WHERE l.attendance_id=attendance.id)`,tickId));
  }

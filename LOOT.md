@@ -1,6 +1,8 @@
 # Boss loot preparation API v0.2
 
-Export `createLootApi({searchItemsByName,fetchItemDetails,cacheItemDetails,knownItems?:[],clock?})`; the returned `handleLootApi(request,env,{user,csrfToken})` handles the routes below. The parent injects the source adapter and item-detail cache. `fetchItemDetails` returns a canonical item directly or throws; `searchItemsByName` returns the source adapter's status/candidates/exactMatch contract. `knownItems` may contain existing sourced reference fixtures to populate the cache before matching. Unmatched paths return null. No schema changes occur during requests; append worker/loot.sql to migration 0001.
+Item matching uses only the active officer-uploaded SODEQ/EQItems catalog. The running application never searches or fetches EQResource; item-ID source URLs are hardlinks only. Imported full names are retained verbatim in evidence. Base, Darkened and Fabled names remain separate rows and identities. Only a unique exact complete name can match automatically. Multiple IDs with the same complete name require officer selection; missing names remain unresolved until new data is uploaded or an ID is explicitly selected. See CATALOG.md for import setup and limits.
+
+Production exports `createLootApi({catalog,fileOnly:true,parseChatLootSources,clock?})`; the returned `handleLootApi(request,env,{user,csrfToken})` handles the routes below. Unique local matches and manager-supplied IDs hydrate selected uploaded details into the reference cache. Remote callbacks and bundled source seeds are ignored in file-only mode. Historical source-adapter unit tests are retained separately and do not enable production remote access. Unmatched paths return null. No schema changes occur during requests.
 
 All draft routes require the admin/officer role. Mutations require exact same-origin Origin and X-CSRF-Token. Authenticated members may read published item history, which never exposes active sealed bids. JSON errors are `{error,code}` and all responses are no-store.
 
@@ -30,4 +32,4 @@ Up to 200 nonempty source lines and 1000 total pieces are accepted per batch, wi
 
 If different input rows resolve to the same item ID, the draft is blocked with `readyToPublish:false`, a warning, and publication error `duplicate_item_rows`. The manager combines the copies into one row's quantity (maximum 50) and ignores the extra rows; every original source line and each review decision remain preserved. The backend never publishes separate auctions for the same included item ID in a boss batch. Combined quantities above 50 require reducing/splitting the source into explicitly reviewed separate boss batches.
 
-Bundled known item references seed absent/unresolved cache entries only. Existing verified references, whether partial or complete, are never overwritten by these seeds.
+File-only matching does not seed bundled item references. Existing published auction identities, names, classes and results remain historical snapshots when a newer catalog is activated. Loot draft preparation and lookup do not create auctions or change DKP; publication and officer award confirmation remain separate explicit actions.

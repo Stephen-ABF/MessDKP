@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import worker from '../dist/server/index.js';
 import { createD1 } from './d1-adapter.mjs';
 import { applicationSchema } from './app-schema.mjs';
+import { uploadTestCatalog } from './catalog-fixture.mjs';
 
 const origin = 'https://guild-desk.test';
 test('bundled Worker serves UTF-8 assets and exact-source item references behind real authentication', async () => {
@@ -17,6 +18,7 @@ test('bundled Worker serves UTF-8 assets and exact-source item references behind
   assert.equal((await worker.fetch(new Request(origin+'/api/items'),{DB:db},{})).status,401);
   const registration=await worker.fetch(new Request(origin+'/api/register',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({email:'integration-owner@example.test',name:'Integration Owner',password:'LocalIntegrationPassword123!'})}),{DB:db},{});
   assert.equal(registration.status,201);const auth=await registration.json();const cookie=registration.headers.get('set-cookie').split(';')[0];
+  await uploadTestCatalog(worker,db,origin,{...auth,cookie});
   const list=await worker.fetch(new Request(origin+'/api/items?class=MNK',{headers:{Cookie:cookie}}),{DB:db},{});
   const catalog=await list.json();assert.equal(list.status,200);assert.equal(catalog.catalogComplete,false);assert.ok(catalog.items.some(i=>i.itemId===44354));assert.ok(catalog.items.some(i=>i.itemId===81773));
   const lookup=await worker.fetch(new Request(origin+'/api/items/lookup',{method:'POST',headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/json','X-CSRF-Token':auth.csrfToken},body:JSON.stringify({itemId:'81773^1557^Blood of the Dhampyre'})}),{DB:db},{});
@@ -36,6 +38,7 @@ test('bundled settings, sealed bids, negative awards and attendance corrections 
  };
  try {
   const officer=await register('workflow-officer@example.test','Workflow Officer');
+  await uploadTestCatalog(worker,db,origin,officer);
   const member=await register('workflow-member@example.test','Workflow Member');
   const files=await Promise.all(['DemoGuild_test-20261111-180515(1).txt','DemoGuild_test-20261111-182058(1).txt'].map(async name=>({name,text:await readFile(new URL('./fixtures/'+name,import.meta.url),'utf8')})));
   const original=(await call('/api/raids','POST',{name:'Workflow original raid',date:'2026-11-11',rate:5},officer)).body.raid;
@@ -56,7 +59,11 @@ test('bundled settings, sealed bids, negative awards and attendance corrections 
   const auction=await call('/api/auctions','POST',create,officer);assert.equal(auction.status,201);assert.equal(auction.body.auction.minimumBid,25);const auctionId=auction.body.auction.id;
   assert.equal(new Date(auction.body.auction.closesAt)-new Date(auction.body.auction.publishedAt),24*60*60*1000);
   const retry=await call('/api/auctions','POST',create,officer);assert.equal(retry.status,200);assert.equal(retry.body.auction.id,auctionId);
+  assert.equal((await call('/api/adjustments','POST',{characterId:mainhero.id,amount:90,reason:'Fixture points before bid.',idempotencyKey:'workflow-bid-funding'},officer)).status,201);
   const bid=await call('/api/auctions/'+auctionId+'/bid','PUT',{amount:100},officer);assert.equal(bid.status,200);assert.equal(bid.body.ownBid.amount,100);
+  assert.equal((await call('/api/dashboard','GET',undefined,officer)).body.balance,100);
+  // An unrelated later adjustment must not cancel an already accepted bid.
+  assert.equal((await call('/api/adjustments','POST',{characterId:mainhero.id,amount:-90,reason:'Fixture later change after acceptance.',idempotencyKey:'workflow-later-change'},officer)).status,201);
   assert.equal((await call('/api/dashboard','GET',undefined,officer)).body.balance,10);
   const sealed=await call('/api/auctions/'+auctionId,'GET',undefined,member);assert.equal(sealed.status,200);assert.equal(sealed.body.bids,null);assert.equal(sealed.body.auction.ownBid,null);assert.deepEqual(sealed.body.awards,[]);
   assert.equal((await call('/api/auctions/'+auctionId+'/close','POST',undefined,officer)).status,409);
@@ -121,6 +128,7 @@ test('bundled boss draft matches the local catalog without source access and pub
   assert.equal((await call('/api/loot/drafts')).status,401);
   const owner=await call('/api/register','POST',{email:'loot-owner@test.invalid',name:'Loot Owner',password:'LocalBossWorkflow123!'});
   assert.equal(owner.status,201);cookie=owner.headers.get('set-cookie').split(';')[0];csrf=owner.body.csrfToken;
+  await uploadTestCatalog(worker,db,origin,{cookie,csrf});
   const created=await call('/api/loot/drafts','POST',{bossName:'Fixture Boss',text:'2 x Blood of the Dhampyre\nAncient Pearlescent Mask',idempotencyKey:'bundled-boss-creation'});
   assert.equal(created.status,201,JSON.stringify(created.body));const draft=created.body.draft;
   assert.equal(draft.readyToPublish,true);assert.equal(draft.totalPieces,3);

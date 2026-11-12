@@ -47,7 +47,7 @@ export function parseLootSources(input){
  if(!rows.length)fail(400,'empty_loot','No nonempty loot lines were supplied.');if(rows.some(row=>row.matchStatus==='needs_review'))warnings.push('Some lines require review. Unrecognized game log or chat text is never automatically treated as loot.');
  return{sources,rows,warnings,totalPieces:total};
 }
-function candidate(value){if(!value||!Number.isSafeInteger(value.itemId)||value.itemId<1||typeof value.name!=='string'||!value.name.trim())return null;return{itemId:value.itemId,name:value.name.trim().slice(0,250),sourceUrl:`${SOURCE}/items.php?id=${value.itemId}`,match:value.match==='exact'?'exact':'candidate'};}
+function candidate(value){if(!value||value.nameConflict||!Number.isSafeInteger(value.itemId)||value.itemId<1||typeof value.name!=='string'||!value.name.trim())return null;return{itemId:value.itemId,name:value.name.trim().slice(0,250),sourceUrl:`${SOURCE}/items.php?id=${value.itemId}`,match:value.match==='exact'?'exact':'candidate'};}
 const rowSelect=`SELECT i.*,r.name AS reference_name,r.source_url,r.metadata_status FROM loot_draft_items i LEFT JOIN item_references r ON r.item_id=i.item_id`;
 function itemShape(row){return{id:row.id,ordinal:row.ordinal,name:row.name,normalizedName:row.normalized_name,quantity:row.quantity,itemId:row.item_id,matchStatus:row.match_status,candidates:parseJson(row.candidates_json,[]),rawLines:parseJson(row.raw_lines_json,[]),note:row.note,sourceUrl:row.source_url??null,displayName:row.reference_name||row.name,metadataStatus:row.metadata_status??null,auctionId:row.auction_id};}
 function validTitle(item){return Boolean(item.displayName?.trim())&&!/^EQ Item \d+$/.test(item.displayName);}
@@ -58,9 +58,20 @@ const ensureRef=(db,itemId,at)=>sql(db,"INSERT INTO item_references(item_id,sour
 function revision(input,value){integer(input.expectedRevision,'Draft revision');if(value.status!=='draft')fail(409,'already_published','A published boss batch cannot be edited.');if(input.expectedRevision!==value.revision)fail(409,'stale_draft','This draft changed. Refresh before continuing.');}
 async function cachedMatches(db,rows){const refs=await all(sql(db,"SELECT item_id,name,source_url FROM item_references WHERE name IS NOT NULL AND metadata_status='verified_reference' ORDER BY item_id LIMIT 10000"));const names=new Map();for(const ref of refs){const key=normalize(ref.name);if(!names.has(key))names.set(key,[]);names.get(key).push({itemId:ref.item_id,name:ref.name,sourceUrl:ref.source_url,match:'exact'});}for(const row of rows){if(row.itemId||row.matchStatus==='needs_review')continue;const matches=names.get(row.normalizedName)||[];if(matches.length===1){row.itemId=matches[0].itemId;row.matchStatus='matched';row.candidates=matches;row.note='Unique exact name match in the sourced item cache.';}else if(matches.length>1){row.matchStatus='ambiguous';row.candidates=matches;row.note='Multiple exact source names require manager selection.';}}}
 
-export function createLootApi({searchItemsByName,fetchItemDetails,cacheItemDetails,knownItems=[],parseChatLootSources,clock}={}){
+export function createLootApi({searchItemsByName,fetchItemDetails,cacheItemDetails,knownItems=[],parseChatLootSources,clock,catalog,fileOnly=false}={}){
  const timeExpression=()=>clock?String(integer(clock(),'Clock',0)):DB_CLOCK;
- async function cacheKnown(db){if(typeof cacheItemDetails==='function')for(const item of knownItems){const existing=await sql(db,'SELECT metadata_status FROM item_references WHERE item_id=?',item.itemId).first();if(existing?.metadata_status!=='verified_reference')await cacheItemDetails(db,item);}}
+ async function cacheKnown(db){if(fileOnly)return;if(typeof cacheItemDetails==='function')for(const item of knownItems){const existing=await sql(db,'SELECT metadata_status FROM item_references WHERE item_id=?',item.itemId).first();if(existing?.metadata_status!=='verified_reference')await cacheItemDetails(db,item);}}
+ async function localMatches(db,rows){
+  for(const row of rows){
+   if(row.itemId){await catalog?.hydrateCatalogItem(db,row.itemId);continue;}
+   if(row.matchStatus==='needs_review')continue;
+   const found=catalog?await catalog.searchCatalogItems(db,{q:row.name,exact:true,limit:100}):{items:[],total:0};
+   row.candidates=found.items.map(item=>({itemId:item.itemId,name:item.name,sourceUrl:item.sourceUrl,match:'exact'}));
+   if(found.total===1){row.itemId=found.items[0].itemId;row.matchStatus='matched';row.note='Unique exact complete name in the uploaded item file.';await catalog.hydrateCatalogItem(db,row.itemId);}
+   else if(found.total>1){row.matchStatus='ambiguous';row.note='Multiple uploaded item IDs have this exact name. Select the correct ID.';}
+   else{row.matchStatus='unmatched';row.note='No exact complete item name exists in the uploaded file.';}
+  }
+ }
  async function cacheResolved(db,itemId,item=null){
   if(item&&typeof cacheItemDetails==='function'){await cacheItemDetails(db,item);return;}
   await ensureRef(db,itemId,now()).run();
@@ -72,7 +83,7 @@ export function createLootApi({searchItemsByName,fetchItemDetails,cacheItemDetai
   const parsed=input.chatCapture?parseChatLootSources(input):parseLootSources(input),key=input.idempotencyKey===undefined?null:text(input.idempotencyKey,'Creation key',128);if(key&&key.length<8)fail(400,'validation','Creation keys need at least 8 characters.');
   const signature=JSON.stringify({bossName,raidId,sources:parsed.sources});
   if(key){const old=await sql(db,'SELECT id,creation_signature FROM loot_drafts WHERE created_by=? AND creation_key=?',user.id,key).first();if(old){if(old.creation_signature!==signature)fail(409,'idempotency_conflict','That key was used for different boss loot.');return json({draft:await draft(db,old.id)},200);}}
-  await cacheKnown(db);await cachedMatches(db,parsed.rows);const draftId=uuid(),at=now(),op=uuid();
+  await cacheKnown(db);if(fileOnly)await localMatches(db,parsed.rows);else await cachedMatches(db,parsed.rows);const draftId=uuid(),at=now(),op=uuid();
   const statements=[sql(db,"INSERT INTO loot_drafts(id,raid_id,boss_name,created_by,sources_json,warnings_json,created_at,updated_at,creation_key,creation_signature) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(created_by,creation_key) DO NOTHING",draftId,raidId,bossName,user.id,JSON.stringify(parsed.sources),JSON.stringify(parsed.warnings),at,at,key,signature)];
   const encoded=JSON.stringify(parsed.rows);
   statements.push(sql(db,"INSERT INTO item_references(item_id,source_url,retrieved_at,verification_method,metadata_status) SELECT DISTINCT json_extract(value,'$.itemId'),?||'/items.php?id='||json_extract(value,'$.itemId'),?,'Item ID supplied in boss loot preparation','unresolved' FROM json_each(?) WHERE json_extract(value,'$.itemId') IS NOT NULL AND EXISTS(SELECT 1 FROM loot_drafts WHERE id=?) ON CONFLICT(item_id) DO NOTHING",SOURCE,at,encoded,draftId));
@@ -90,6 +101,7 @@ export function createLootApi({searchItemsByName,fetchItemDetails,cacheItemDetai
   if(input.ignore===true){status='ignored';note='Manager excluded this source line from the boss auction batch.';}else if(input.ignore===false&&status==='ignored'){status=itemId?'manual_verified':'unmatched';note='Manager restored this row for review.';}
   if(name!==row.name&&input.itemId===undefined&&status!=='ignored'){itemId=null;status='unmatched';note='The item name changed and needs a new match.';}
   const total=value.items.filter(i=>i.id!==rowId&&i.matchStatus!=='ignored').reduce((n,i)=>n+i.quantity,0)+(status==='ignored'?0:quantity);if(total>1000)fail(400,'too_many_pieces','Use at most 1000 pieces per batch.');
+  if(fileOnly&&itemId)await catalog?.hydrateCatalogItem(db,itemId);
   const operation=uuid(),at=now(),statements=[sql(db,"UPDATE loot_drafts SET revision=revision+1,updated_at=? WHERE id=? AND status='draft' AND revision=?",operation,draftId,input.expectedRevision)];
   if(itemId)statements.push(sql(db,"INSERT INTO item_references(item_id,source_url,retrieved_at,verification_method,metadata_status) SELECT ?,?,?,'Manager-selected item reference','unresolved' WHERE EXISTS(SELECT 1 FROM loot_drafts WHERE id=? AND updated_at=?) ON CONFLICT(item_id) DO NOTHING",itemId,`${SOURCE}/items.php?id=${itemId}`,at,draftId,operation));
   statements.push(sql(db,'UPDATE loot_draft_items SET name=?,normalized_name=?,quantity=?,item_id=?,match_status=?,note=? WHERE id=? AND draft_id=? AND EXISTS(SELECT 1 FROM loot_drafts WHERE id=? AND updated_at=?)',name,normalize(name),quantity,itemId,status,note,rowId,draftId,draftId,operation));
@@ -102,9 +114,21 @@ export function createLootApi({searchItemsByName,fetchItemDetails,cacheItemDetai
   if(input.rowIds!==undefined){if(!Array.isArray(input.rowIds)||input.rowIds.some(x=>typeof x!=='string'))fail(400,'validation','rowIds must be draft item IDs.');const selected=new Set(input.rowIds);if(value.items.filter(i=>selected.has(i.id)).length!==selected.size)fail(400,'validation','Choose item rows from this draft.');rows=rows.filter(i=>selected.has(i.id));}
   rows=rows.slice(0,10);if(!rows.length)return json({draft:value,searched:0,remaining:value.items.filter(i=>['unmatched','ambiguous'].includes(i.matchStatus)).length});
   await cacheKnown(db);const outcomes=[];const queue=[...rows];
-  async function worker(){while(queue.length){const row=queue.shift();let result;try{result=typeof searchItemsByName==='function'?await searchItemsByName(row.name,{timeoutMs:1500}):{status:'unavailable',candidates:[],reason:'Live source search is unavailable.'};}catch{result={status:'unavailable',candidates:[],reason:'EQResource could not be reached.'};}
+  async function worker(){while(queue.length){const row=queue.shift();
+   if(fileOnly){const copy={...row,itemId:null,candidates:[]};await localMatches(db,[copy]);outcomes.push({row,itemId:copy.itemId,status:copy.matchStatus,note:copy.itemId||copy.matchStatus==='ambiguous'?copy.note:'No exact complete item name exists in the uploaded file. Upload newer item data or select an ID.',candidates:copy.candidates});continue;}
+   let result;try{result=typeof searchItemsByName==='function'?await searchItemsByName(row.name,{timeoutMs:5000}):{status:'unavailable',candidates:[],reason:'Live source search is unavailable.'};}catch{result={status:'unavailable',candidates:[],reason:'EQResource could not be reached.'};}
    const candidates=(Array.isArray(result?.candidates)?result.candidates:[]).map(candidate).filter(Boolean);const exact=result?.status==='matched'&&!result.additionalPages?candidates.filter(c=>c.match==='exact'&&normalize(c.name)===normalize(row.name)):[];let itemId=null,status=exact.length>1?'ambiguous':'unmatched',note=result?.reason||'No unique exact match was verified.';
-   if(exact.length===1){itemId=exact[0].itemId;status='matched';note='Unique exact item-name match from the source.';let details;try{details=typeof fetchItemDetails==='function'?await fetchItemDetails(itemId,{timeoutMs:1500}):null;}catch{}await cacheResolved(db,itemId,details?.itemId===itemId?details:{itemId,name:exact[0].name,sourceUrl:exact[0].sourceUrl,metadataStatus:'verified_reference',metadataComplete:false,verificationMethod:'EQResource unique exact search result',retrievedAt:now()});}
+   if(exact.length===1){
+    itemId=exact[0].itemId;status='matched';note='Unique exact complete item name from the EQResource item search.';
+    let details;try{details=typeof fetchItemDetails==='function'?await fetchItemDetails(itemId,{timeoutMs:3000}):null;}catch{}
+    const verified=details?.itemId===itemId&&details.metadataStatus==='verified_reference'&&normalize(details.name)===normalize(row.name);
+    const previous=await sql(db,'SELECT name,metadata_status FROM item_references WHERE item_id=?',itemId).first();
+    if(!verified&&previous?.metadata_status==='verified_reference'&&previous.name&&normalize(previous.name)!==normalize(row.name)){itemId=null;status='ambiguous';note='The saved item ID has a different complete name. Review the source variant before selecting it.';}
+    else{
+     await cacheResolved(db,itemId,verified?details:{itemId,name:exact[0].name,sourceUrl:exact[0].sourceUrl,metadataStatus:'verified_reference',metadataComplete:false,verificationMethod:'EQResource basic item search: unique exact complete name',retrievedAt:now()});
+     const saved=await sql(db,'SELECT name FROM item_references WHERE item_id=?',itemId).first();if(saved?.name&&normalize(saved.name)!==normalize(row.name)){itemId=null;status='ambiguous';note='The retained verified snapshot has a different complete name; source review is required.';}
+    }
+   }
    else if(candidates.length){status='ambiguous';note='Source candidates require explicit manager selection.';}
    outcomes.push({row,itemId,status,note,candidates});
   }}await Promise.all([worker(),worker(),worker()]);

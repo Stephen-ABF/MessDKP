@@ -8,7 +8,7 @@ const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Contr
 const sql=(db,query,...params)=>db.prepare(query).bind(...params);
 const validItem=value=>value===null||Number.isSafeInteger(value)&&value>0;
 const characterQuery="SELECT c.id,c.name,c.class_name AS className,c.kind,c.owner_id AS ownerId,CASE WHEN c.owner_id=u.id AND c.kind IN('main','alt') AND c.approved_at IS NOT NULL THEN 1 ELSE 0 END AS can_edit FROM characters c JOIN users u ON u.id=? WHERE c.id=?";
-const slotQuery='SELECT e.slot_key AS slotKey,e.item_id AS itemId,r.name AS itemName,e.source,e.updated_at AS updatedAt FROM character_equipment e LEFT JOIN item_references r ON r.item_id=e.item_id WHERE e.character_id=?';
+const slotQuery='SELECT e.slot_key AS slotKey,e.item_id AS itemId,r.name AS itemName,e.source,e.updated_at AS updatedAt,e.operation_id AS operationId FROM character_equipment e LEFT JOIN item_references r ON r.item_id=e.item_id WHERE e.character_id=?';
 function slotShape(key,row){const definition=EQUIPMENT_SLOTS.find(s=>s.key===key);return {...definition,itemId:row?.itemId??null,itemName:row?.itemId?(row.itemName||'EQ Item '+row.itemId):null,source:row?.itemId?row.source:null,updatedAt:row?.updatedAt??null};}
 async function input(request){
  if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail(415,'content_type','Send JSON equipment data.');
@@ -18,7 +18,7 @@ async function input(request){
  if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||!Object.hasOwn(parsed,'itemId')||!Object.hasOwn(parsed,'expectedItemId')||!validItem(parsed.itemId)||!validItem(parsed.expectedItemId))fail(400,'validation','Supply itemId and expectedItemId as positive whole item IDs or null.');return parsed;
 }
 async function character(db,id,userId){const row=await sql(db,characterQuery,userId,id).first();if(!row)fail(404,'not_found','Character not found.');return row;}
-export function createEquipmentApi({knownItems=[]}={}){
+export function createEquipmentApi({knownItems=[],loadInventoryAugments,catalog}={}){
  const known=new Map(knownItems.filter(i=>Number.isSafeInteger(i.itemId)&&i.itemId>0).map(i=>[i.itemId,i]));
  return async function(request,env,context={}){
  const route=/^\/api\/characters\/([^/]+)\/equipment(?:\/([^/]+))?$/.exec(new URL(request.url).pathname);if(!route)return null;
@@ -28,14 +28,14 @@ export function createEquipmentApi({knownItems=[]}={}){
   const mayWrite=!Object.hasOwn(context,'access')||['overview','mains'].some(area=>context.access?.permissions?.[area]===3);
   if(request.method==='GET'&&!key){
    const result=await db.batch([sql(db,characterQuery,context.user.id,characterId),sql(db,slotQuery,characterId)]),row=result[0].results[0];if(!row)fail(404,'not_found','Character not found.');
-   const rows=new Map(result[1].results.map(s=>[s.slotKey,s]));const {can_edit,...character}=row;return json({character,canEdit:!!can_edit&&mayWrite,slots:EQUIPMENT_SLOTS.map(s=>slotShape(s.key,rows.get(s.key)))});
+   const rows=new Map(result[1].results.map(s=>[s.slotKey,s])),augments=loadInventoryAugments?await loadInventoryAugments(db,characterId):{};const {can_edit,...character}=row;return json({character,canEdit:!!can_edit&&mayWrite,slots:EQUIPMENT_SLOTS.map(s=>({...slotShape(s.key,rows.get(s.key)),augments:augments[s.key]?.operationId===rows.get(s.key)?.operationId?augments[s.key]?.augments||[]:[]}))});
   }
   if(request.method!=='PUT'||!key)fail(405,'method_not_allowed','Use GET to view equipment or PUT to update one equipment slot.');
   if(!EQUIPMENT_SLOTS.some(s=>s.key===key))fail(400,'invalid_slot','Choose a valid character equipment slot.');
   if(request.headers.get('origin')!==new URL(request.url).origin)fail(403,'origin','A same-origin request is required.');if(!context.csrfToken||request.headers.get('x-csrf-token')!==context.csrfToken)fail(403,'csrf','Refresh your session before updating equipment.');
   const data=await input(request),row=await character(db,characterId,context.user.id);if(!row.can_edit||!mayWrite)fail(403,'forbidden','Only this approved character owner with profile write access may edit its equipment.');
   let seed=null;
-  if(data.itemId!==null&&!await sql(db,'SELECT item_id FROM item_references WHERE item_id=?',data.itemId).first()){seed=known.get(data.itemId);if(!seed)fail(400,'unknown_item','Add this item reference to the guild catalog before selecting it.');}
+  if(data.itemId!==null&&!await sql(db,'SELECT item_id FROM item_references WHERE item_id=?',data.itemId).first()){seed=catalog?await catalog.getCatalogItem(db,data.itemId):known.get(data.itemId);if(!seed)fail(400,'unknown_item','Upload item data containing this item before selecting it.');}
   const old=await sql(db,slotQuery+' AND e.slot_key=?',characterId,key).first();
   if((old?.itemId??null)===data.itemId)return json({slot:slotShape(key,old),alreadyApplied:true});
   if((old?.itemId??null)!==data.expectedItemId)fail(409,'equipment_conflict','This equipment slot changed. Refresh the character profile before saving.');

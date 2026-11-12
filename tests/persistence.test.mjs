@@ -93,12 +93,12 @@ test('actual accounts, authenticated sessions, imported attendance, ledger, auct
  const character=(await call('/api/characters','GET',undefined,auth)).body.characters.find(c=>c.name==='Alpha');const claim=await call('/api/claims','POST',{characterId:character.id},auth);assert.equal(claim.status,201);assert.equal((await call('/api/claims/'+claim.body.claim.id+'/approve','POST',{kind:'main'},auth)).status,200);
  DB.raw.prepare('INSERT INTO item_references(item_id,name,classes_json,source_url,retrieved_at,verification_method,metadata_status) VALUES(?,?,?,?,?,?,?)').run(1,'Persistence Test Ring','["ALL"]','https://items.eqresource.com/items.php?id=1',new Date().toISOString(),'test fixture','verified_reference');
  const auctionCall=async(route,method='GET',body)=>{const response=await handleAuctionApi(new Request('https://guild.test'+route,{method,headers:{origin:'https://guild.test','content-type':'application/json','x-csrf-token':auth.csrfToken},...(body===undefined?{}:{body:JSON.stringify(body)})}),{DB},auth);return {status:response.status,body:await response.json()};};
- const auction=await auctionCall('/api/auctions','POST',{itemId:1,quantity:1});assert.equal(auction.status,201,JSON.stringify(auction.body));assert.equal((await auctionCall('/api/auctions/'+auction.body.auction.id+'/bid','PUT',{amount:100})).status,200);
+ const auction=await auctionCall('/api/auctions','POST',{itemId:1,quantity:1});assert.equal(auction.status,201,JSON.stringify(auction.body));assert.equal((await auctionCall('/api/auctions/'+auction.body.auction.id+'/bid','PUT',{amount:5})).status,200);
  const snapshot=()=>Object.fromEntries(['users','sessions','ticks','attendance','ledger','auctions','auction_bids','audit'].map(table=>[table,DB.raw.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()]));const before=snapshot();DB.close();DB=open(config);
  try {
   assert.deepEqual(snapshot(),before);assert.equal((await call('/api/me','GET',undefined,auth)).body.user.id,auth.user.id);
   const login=await call('/api/login','POST',{email:'owner@guild.test',password:'correct horse battery staple'});assert.equal(login.status,200);assert.equal(login.body.user.role,'admin');
-  assert.equal((await call('/api/dashboard','GET',undefined,auth)).body.balance,5);const saved=await auctionCall('/api/auctions/'+auction.body.auction.id);assert.equal(saved.body.auction.ownBid.amount,100);assert.equal(DB.raw.prepare('SELECT COUNT(*) n FROM users').get().n,1);
+  assert.equal((await call('/api/dashboard','GET',undefined,auth)).body.balance,5);const saved=await auctionCall('/api/auctions/'+auction.body.auction.id);assert.equal(saved.body.auction.ownBid.amount,5);assert.equal(DB.raw.prepare('SELECT COUNT(*) n FROM users').get().n,1);
  }finally{DB.close();}
 });
 
@@ -116,5 +116,8 @@ test('HTTP bridge bounds uploads, rejects rebinding targets, strips spoofed prox
   let response=await dispatch('/api/test',{'x-forwarded-host':'evil.test','x-forwarded-proto':'https','x-forwarded-for':'9.9.9.9','cf-connecting-ip':'8.8.8.8'});assert.equal(response.status,200);assert.equal(seen.request.url,'http://localhost:4173/api/test');assert.equal(seen.request.headers.get('cf-connecting-ip'),'127.0.0.1');assert.equal(seen.request.headers.get('x-forwarded-for'),null);assert.deepEqual(response.headers['set-cookie'],['a=one','b=two']);assert.equal(seen.env.LOCAL_STORAGE.persistent,true);
   for(const [url,headers]of [['/',{host:'evil.test:4173'}],['//evil.test/',{}],['/\\evil.test/',{}],['http://evil.test/',{}]])assert.equal((await dispatch(url,headers)).status,400);
   assert.equal((await dispatch('/',{'content-length':String(MAX_REQUEST_BYTES+1)})).status,413);assert.equal((await dispatch('/',{},[Buffer.alloc(MAX_REQUEST_BYTES),Buffer.from('x')])).status,413);
+  assert.equal((await dispatch('/api/catalog/import',{},[Buffer.alloc(MAX_REQUEST_BYTES+1)])).status,200);
+  assert.equal((await dispatch('/api/items/lookup',{},[Buffer.alloc(MAX_REQUEST_BYTES+1)])).status,413);
+  assert.equal((await dispatch('/api/catalog/import',{'content-length':String(32*1024*1024+65537)},[Buffer.from('x')])).status,413);
  }finally{await app.close();}
 });

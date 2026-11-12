@@ -12,7 +12,7 @@ function auditFilters(url){
  for(const key of url.searchParams.keys())if(!allowed.has(key)||url.searchParams.getAll(key).length!==1)auditFail(400,'invalid_filter','Use each supported audit filter at most once.');
  const filters={};
  for(const key of ['actorId','subjectUserId','characterId','action','q']){const value=(url.searchParams.get(key)||'').trim();if(value.length>(key==='q'?120:128)||/[\u0000-\u001f\u007f]/.test(value))auditFail(400,'invalid_filter','Keep audit filter values short and printable.');if(value)filters[key]=value;}
- for(const key of ['from','to'])if(url.searchParams.has(key))filters[key]=auditDate(url.searchParams.get(key),key==='from'?'Start date':'End date');
+ for(const key of ['from','to']){const value=(url.searchParams.get(key)||'').trim();if(value)filters[key]=auditDate(value,key==='from'?'Start date':'End date');}
  if(filters.from&&filters.to&&filters.from>filters.to)auditFail(400,'invalid_filter','The start date must not follow the end date.');
  for(const [key,fallback,min,max]of[['limit',50,1,100],['offset',0,0,1000000]]){const raw=url.searchParams.get(key)??String(fallback);if(!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw))||Number(raw)<min||Number(raw)>max)auditFail(400,'invalid_filter','Choose a valid audit '+key+'.');filters[key]=Number(raw);}
  return filters;

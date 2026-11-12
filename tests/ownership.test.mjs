@@ -104,12 +104,12 @@ test('withdrawn bids permit a corrected owner and a replacement main while retai
  const call=async(path,method,data,auth)=>{const r=await auctionApi(new Request(origin+path,{method,headers:{Origin:origin,'Content-Type':'application/json','X-CSRF-Token':auth.csrfToken},...(data===undefined?{}:{body:JSON.stringify(data)})}),{DB:h.DB},{user:auth.user,csrfToken:auth.csrfToken});return{status:r.status,body:await r.json()};};
  h.DB.raw.prepare("INSERT INTO item_references(item_id,name,source_url,retrieved_at,verification_method,metadata_status) VALUES(1,'Fixture Ring','https://items.eqresource.com/items.php?id=1','2026-11-12','fixture','unresolved')").run();
  const a=await call('/api/auctions','POST',{itemId:1,quantity:1},h.officer);assert.equal(a.status,201);const path='/api/auctions/'+a.body.auction.id+'/bid';
- assert.equal((await call(path,'PUT',{amount:100},h.member)).status,200);
+ assert.equal((await call(path,'PUT',{amount:5},h.member)).status,200);
  assert.equal((await call(path,'DELETE',undefined,h.member)).status,200);
  assert.equal((await h.detach()).status,200);
  const q=await h.call('/api/claims','POST',{characterId:h.character.id},h.other);assert.equal(q.status,201);
  assert.equal((await h.call('/api/claims/'+q.body.claim.id+'/approve','POST',{kind:'main'},h.officer)).status,200);
- assert.equal((await call(path,'PUT',{amount:80},h.other)).status,200);
+ assert.equal((await call(path,'PUT',{amount:4},h.other)).status,200);
  assert.equal((await call(path,'PUT',{amount:200},h.member)).status,403);
  const oldEvents=h.DB.raw.prepare('SELECT user_id,action FROM auction_bid_events ORDER BY sequence').all();assert.deepEqual(oldEvents.map(e=>[e.user_id,e.action]),[[h.member.user.id,'place'],[h.member.user.id,'withdraw'],[h.other.user.id,'place']]);
  // A separately approved replacement main must not inherit an inactive account projection.
@@ -117,9 +117,10 @@ test('withdrawn bids permit a corrected owner and a replacement main while retai
  const current=(await h.call('/api/claims','GET',undefined,h.officer)).body.assignments.find(e=>e.currentlyAssigned);
  assert.equal((await h.detach({reason:'Correct the main character assignment.',expectedOwnerId:h.other.user.id,expectedAssignmentId:current.id})).status,200);
  h.DB.raw.prepare("INSERT INTO characters(id,name_key,name,level,class_name,guild_rank,kind,owner_id,approved_at) VALUES('replacement','replacement','Replacement',85,'Cleric','Raider','main',?,'2026-11-12')").run(h.other.user.id);
- assert.equal((await call(path,'PUT',{amount:70},h.other)).status,200);
- const projection=h.DB.raw.prepare('SELECT character_id,user_id,amount FROM auction_bids').all();assert.deepEqual(projection.map(row=>({...row})),[{character_id:'replacement',user_id:h.other.user.id,amount:70}]);
+ h.DB.raw.prepare("INSERT INTO ledger(id,character_id,amount,reason,actor_id,created_at,operation_id) VALUES('replacement-funding','replacement',3,'Fixture replacement balance',?,'2026-11-12','replacement-funding')").run(h.officer.user.id);
+ assert.equal((await call(path,'PUT',{amount:3},h.other)).status,200);
+ const projection=h.DB.raw.prepare('SELECT character_id,user_id,amount FROM auction_bids').all();assert.deepEqual(projection.map(row=>({...row})),[{character_id:'replacement',user_id:h.other.user.id,amount:3}]);
  assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM auction_bid_events').get().n,5);
- assert.equal(h.DB.raw.prepare('SELECT SUM(amount) n FROM ledger').get().n,5);
+ assert.equal(h.DB.raw.prepare('SELECT SUM(amount) n FROM ledger WHERE character_id=?').get(h.character.id).n,5);
  const concealed=await call('/api/auctions/'+a.body.auction.id,'GET',undefined,h.officer);assert.equal(concealed.body.bids,null);
 }finally{h.close();}});

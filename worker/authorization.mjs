@@ -14,6 +14,8 @@ export async function authorizeRoute(request,db,auth){
  if(path==='/api/dashboard')return one('overview',2);
  if(path==='/api/access'||path.startsWith('/api/access/'))return one('access');
  if(path==='/api/audit')return one('audit',2);
+ if(path==='/api/catalog'||path.startsWith('/api/catalog/'))return managed('items');
+ if((match=/^\/api\/characters\/([^/]+)\/inventory\/(preview|import)$/.exec(path))){if(!await owned(match[1]))throw new AuthorizationError('You can import inventory only for your own approved character.');return any(['overview','mains'],3);}
  if(path==='/api/raid-options')return any(['attendance','loot','captures'],2);
  if(path==='/api/attendance-requests/options')return one('corrections',2);
  if(path==='/api/ledger/characters')return managed('ledger',3);
@@ -39,6 +41,7 @@ export async function authorizeRoute(request,db,auth){
  if(path==='/api/auctions'&&method==='POST'||/^\/api\/auctions\/[^/]+\/(?:close|awards\/[^/]+\/confirm)$/.test(path))return managed('auctionAdmin',3);
  if(path==='/api/auctions'||path.startsWith('/api/auctions/'))return{...(read?any(['auctions','auctionAdmin'],2):one('auctions')),legacyRole:allowed(access,'auctionAdmin',2)?'admin':'member'};
  if(path==='/api/captures'||path.startsWith('/api/captures/'))return !read&&path.endsWith('/prepare')?both('captures','loot'):managed('captures');
+ if(path==='/api/companion-devices'||path.startsWith('/api/companion-devices/'))return managed('captures');
  if(path==='/api/loot'||path.startsWith('/api/loot/'))return !read&&path.endsWith('/publish')?both('loot','auctionAdmin'):managed('loot');
  throw new AuthorizationError();
 }

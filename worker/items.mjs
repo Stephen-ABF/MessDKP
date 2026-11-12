@@ -244,9 +244,89 @@ export async function cacheItemDetails(db, incoming) {
  await db.prepare(`INSERT INTO item_references(item_id,name,classes_json,races_json,slots_json,stats_json,flags_json,advanced_loot,source_url,source_checked_at,source_updated_at,retrieved_at,verification_method,metadata_status,full_details_json,icon_url,metadata_complete,source_status_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET name=excluded.name,classes_json=excluded.classes_json,races_json=excluded.races_json,slots_json=excluded.slots_json,stats_json=excluded.stats_json,flags_json=excluded.flags_json,advanced_loot=excluded.advanced_loot,source_url=excluded.source_url,source_checked_at=excluded.source_checked_at,source_updated_at=excluded.source_updated_at,retrieved_at=excluded.retrieved_at,verification_method=excluded.verification_method,metadata_status=excluded.metadata_status,full_details_json=excluded.full_details_json,icon_url=excluded.icon_url,metadata_complete=excluded.metadata_complete,source_status_json=excluded.source_status_json`).bind(item.itemId,item.name,...['classes','races','slots','stats','flags'].map(k=>item[k]===null?null:JSON.stringify(item[k])),item.advancedLoot,item.sourceUrl,item.sourceCheckedAt,item.sourceUpdatedAt,item.retrievedAt,item.verificationMethod,item.metadataStatus,JSON.stringify(item.details),item.iconUrl,item.metadataComplete?1:0,JSON.stringify({status:complete?'complete':'partial',message:complete?'Full item metadata is cached.':'Available item data is cached; missing fields are not inferred.'})).run();
  return getCachedItemDetails(db,item.itemId);
 }
-export function createItemApi({fetchItemDetails}={}) {
+async function sourceSearchName(request){
+ if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail('Send JSON containing the full item name.','invalid_content_type',415);
+ const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;
+ if(reader){try{while(true){const{value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>2048){await reader.cancel().catch(()=>{});fail('Keep item search requests under 2 KiB.','request_too_large',413);}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}
+ let data;try{data=JSON.parse(raw);}catch{fail('Send a valid item name search.','invalid_json');}
+ if(!data||typeof data!=='object'||Array.isArray(data)||typeof data.name!=='string')fail('Enter the full item name.','invalid_item_name');
+ const name=data.name.trim();if(!name||name.length>250||/[\u0000-\u001f\u007f]/.test(name))fail('Use a complete item name from 1 to 250 printable characters.','invalid_item_name');return name;
+}
+const sourceNameKey=value=>typeof value==='string'?value.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase():'';
+function sourceCandidate(value,query){
+ if(!value||!Number.isSafeInteger(value.itemId)||value.itemId<1||typeof value.name!=='string'||!value.name.trim()||value.name.trim().length>250||value.nameConflict)return null;
+ return{itemId:value.itemId,name:value.name.trim(),sourceUrl:SOURCE_ORIGIN+'/items.php?id='+value.itemId,match:sourceNameKey(value.name)===sourceNameKey(query)?'exact':'candidate'};
+}
+async function localItemBody(request){
+ if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail('Send JSON item data.','invalid_content_type',415);
+ const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;if(reader){try{while(true){const{value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>4096){await reader.cancel().catch(()=>{});fail('The item request is too large.','request_too_large',413);}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}
+ let data;try{data=JSON.parse(raw);}catch{fail('Send valid JSON item data.','invalid_json');}if(!data||typeof data!=='object'||Array.isArray(data))fail('Send a JSON object.','invalid_json');return data;
+}
+async function fileCatalogItemApi(request,env,context,catalog){
+ const url=new URL(request.url),path=url.pathname,match=/^\/api\/items\/(\d+)(\/refresh)?$/.exec(path);
+ if(path!=='/api/items'&&path!=='/api/items/search'&&path!=='/api/items/lookup'&&!match)return null;
+ try{
+  if(!context.user?.id)return json({error:'Sign in to view item data.',code:'unauthorized'},401);if(!env?.DB)return json({error:'The item database is unavailable.',code:'database_unavailable'},503);
+  const stored=async id=>{const row=await env.DB.prepare('SELECT * FROM item_references WHERE item_id=?').bind(id).first();if(!row)return null;const item=itemFromRow(row);return{...item,iconUrl:null,sourceStatus:{status:'retained',message:'Previously stored item data; this ID is not in the active upload.'}};};
+  if(path==='/api/items'&&request.method==='GET'){
+   const q=(url.searchParams.get('q')||'').trim(),classCode=normalizeClass(url.searchParams.get('class'))||'',slot=(url.searchParams.get('slot')||'').trim().toUpperCase(),rawLimit=url.searchParams.get('limit')||'50';
+   if(!/^\d+$/.test(rawLimit))fail('Choose a result limit from 1 to 100.','invalid_limit');return json(await catalog.searchCatalogItems(env.DB,{q,classCode,slot,limit:Number(rawLimit)}));
+  }
+  if(match&&request.method==='GET'&&!match[2]){const id=parseEqItemReference(match[1]).itemId,item=await catalog.getCatalogItem(env.DB,id)||await stored(id);return item?json({item,sourceStatus:item.sourceStatus}):json({error:'This item is not in the uploaded catalog.',code:'not_found',sourceUrl:SOURCE_ORIGIN+'/items.php?id='+id},404);}
+  if(request.method!=='POST')return json({error:'Method not allowed.',code:'method_not_allowed'},405);requireMutationAccess(request,context);
+  if(path==='/api/items/search'){
+   const query=await sourceSearchName(request),found=await catalog.searchCatalogItems(env.DB,{q:query,exact:true,limit:100}),candidates=found.items.map(item=>({itemId:item.itemId,name:item.name,sourceUrl:item.sourceUrl,match:'exact'}));
+   const exactMatch=found.total===1?candidates[0]:null,item=exactMatch?await catalog.hydrateCatalogItem(env.DB,exactMatch.itemId):null,status=exactMatch?'matched':found.total?'ambiguous':found.catalog?'not_found':'unavailable';
+   return json({query,status,candidates,exactMatch,item,sourceStatus:item?.sourceStatus??{status:found.catalog?'uploaded':'catalog_required',message:found.catalog?'Search uses only the uploaded item file.':'Upload item data before searching.'},sourceUrl:null});
+  }
+  if(path==='/api/items/lookup'){
+   const input=await localItemBody(request),reference=parseEqItemReference(input.itemId),item=await catalog.hydrateCatalogItem(env.DB,reference.itemId);
+   if(item)return json({item,mode:'uploaded_catalog',sourceStatus:item.sourceStatus});
+   await env.DB.prepare("INSERT OR IGNORE INTO item_references(item_id,name,source_url,retrieved_at,verification_method,metadata_status) VALUES(?,?,?,?,?,'unresolved')").bind(reference.itemId,reference.suppliedName,reference.sourceUrl,new Date().toISOString(),'Item ID supplied locally; absent from uploaded catalog').run();
+   const retained=await stored(reference.itemId);return json({item:retained,mode:'reference_only',sourceStatus:{status:'not_in_catalog',message:'This item ID is not present in the uploaded file.'}},202);
+  }
+  if(match&&match[2]){const id=parseEqItemReference(match[1]).itemId,item=await catalog.hydrateCatalogItem(env.DB,id)||await stored(id);return item?json({item,sourceStatus:item.sourceStatus}):json({error:'Upload an item file containing this ID to refresh it.',code:'not_in_catalog'},404);}
+  return json({error:'Method not allowed.',code:'method_not_allowed'},405);
+ }catch(error){return json({error:error.status?error.message:'The uploaded item data could not be loaded.',code:error.code||'item_catalog_error'},error.status||500);}
+}
+export function createItemApi({fetchItemDetails,searchItemsByName,catalog,fileOnly=false}={}) {
  return async function(request,env,context={}) {
+  if(fileOnly){
+   if(catalog)return fileCatalogItemApi(request,env,context,catalog);
+   const path=new URL(request.url).pathname;
+   return path==='/api/items'||path.startsWith('/api/items/')?json({error:'The uploaded item catalog is unavailable.',code:'catalog_unavailable'},503):null;
+  }
   const url=new URL(request.url),match=/^\/api\/items\/(\d+)(\/refresh)?$/.exec(url.pathname);
+  if(url.pathname==='/api/items/search'){
+   try{
+    if(!context.user?.id)return json({error:'Sign in to search item references.',code:'unauthorized'},401);
+    requireMutationAccess(request,context);
+    if(request.method!=='POST')return json({error:'Use POST to search the EQResource item database.','code':'method_not_allowed'},405);
+    if(!env?.DB)return json({error:'The item reference database is unavailable.',code:'database_unavailable'},503);
+    const query=await sourceSearchName(request),sourceUrl=SOURCE_ORIGIN+'/itemsearch.php';
+    let result;
+    try{result=typeof searchItemsByName==='function'?await searchItemsByName(query,{timeoutMs:8000}):{status:'unavailable',code:'source_unavailable',message:'EQResource item search is unavailable.'};}catch(error){result={status:'unavailable',code:error.code||'source_unavailable',message:error.message||'EQResource item search could not be reached.'};}
+    const unique=new Map(),conflicts=new Set();for(const value of(Array.isArray(result?.candidates)?result.candidates:[]).slice(0,500).map(value=>sourceCandidate(value,query)).filter(Boolean)){const previous=unique.get(value.itemId);if(previous&&sourceNameKey(previous.name)!==sourceNameKey(value.name))conflicts.add(value.itemId);else unique.set(value.itemId,value);}
+    const candidates=[...unique.values()].filter(value=>!conflicts.has(value.itemId));
+    const exact=candidates.filter(value=>value.match==='exact');
+    const exactMatch=result?.status==='matched'&&!result.additionalPages&&exact.length===1?exact[0]:null;
+    let status=exactMatch?'matched':result?.status==='unavailable'?'unavailable':candidates.length?'ambiguous':result?.status==='not_found'?'not_found':'unavailable',item=null;
+    let sourceStatus={status,code:plain(result?.code,100),message:plain(result?.message||result?.reason,1000)|| (status==='matched'?'Exact item name found in EQResource.':status==='ambiguous'?'Review the source names before selecting an item.':status==='not_found'?'No item matched this complete name.':'EQResource item search is unavailable.')};
+    if(exactMatch){
+     let details=null;
+     try{details=typeof fetchItemDetails==='function'?await fetchItemDetails(exactMatch.itemId,{timeoutMs:4000}):null;if(details&&(details.itemId!==exactMatch.itemId||sourceNameKey(details.name)!==sourceNameKey(query)||details.metadataStatus!=='verified_reference'))throw Object.assign(new Error('The detail page no longer identifies this exact item name.'),{code:'source_identity_changed'});}
+     catch(error){details=null;sourceStatus={status:'identity_only',code:plain(error.code,100)||'source_unavailable',message:'The exact item was found, but its detail page could not be verified. '+(plain(error.message,700)||'Cached details are retained.')};}
+     if(!details&&sourceStatus.status==='matched')sourceStatus={status:'identity_only',message:'The exact source identity was found; full item details are not available.'};
+     const previous=await getCachedItemDetails(env.DB,exactMatch.itemId);
+     if(!details&&previous?.name&&sourceNameKey(previous.name)!==sourceNameKey(query)){status='ambiguous';sourceStatus={status:'identity_conflict',code:'cached_identity_conflict',message:'The saved item has a different complete name. Keep the source variants separate and review the item ID.'};}
+     else{
+      item=await cacheItemDetails(env.DB,details||{...exactMatch,metadataStatus:'verified_reference',metadataComplete:false,verificationMethod:'EQResource basic item search: unique exact complete name',retrievedAt:new Date().toISOString()});
+      if(sourceNameKey(item.name)!==sourceNameKey(query)){item=null;status='ambiguous';sourceStatus={status:'identity_conflict',code:'cached_identity_conflict',message:'An earlier verified snapshot has a different complete name. Review the source before changing this item.'};}
+     }
+    }
+    return json({query,status,candidates:status==='unavailable'?[]:candidates,exactMatch:status==='matched'?exactMatch:null,item,sourceStatus,sourceUrl});
+   }catch(error){return json({error:error.status?error.message:'The item-name search could not be completed.',code:error.code||'item_search_error'},error.status||500);}
+  }
   if(!match)return legacyItemApi(request,env,context);
   try {
    if(!context.user?.id)return json({error:'Sign in to view item details.',code:'unauthorized'},401);

@@ -18,7 +18,8 @@ const itemSource = await exists('worker/items.mjs') ? await read('worker/items.m
 const auctionSource = await exists('worker/auctions.mjs') ? await read('worker/auctions.mjs') : '';
 const auctionRuleSource = auctionSource ? await read('worker/auction-rules.mjs') : '';
 const adminSource = await exists('worker/admin.mjs') ? await read('worker/admin.mjs') : '';
-const eqresourceSource = await read('worker/eqresource.mjs');
+const catalogSource = await read('worker/catalog-import.mjs');
+const inventorySource = await read('worker/inventory.mjs');
 const reportsSource = await read('worker/reports.mjs');
 const lootSource = await read('worker/loot.mjs');
 const logParserSource = await read('worker/log-parser.mjs');
@@ -29,6 +30,7 @@ const accessSource=await read('worker/access.mjs');
 const authorizationSource=await read('worker/authorization.mjs');
 const auditLogSource=await read('worker/audit-log.mjs');
 const optionsSource=await read('worker/member-options.mjs');
+const deviceSource=await read('worker/companion-devices.mjs');
 const stripExports = source => {
   if (/^\s*import\s/m.test(source)) throw new Error('Worker modules must remain self-contained for this dependency-free bundler.');
   return source.replace(/^export\s+(?=(?:async\s+)?(?:function|const|let|class)\b)/gm, '');
@@ -36,22 +38,24 @@ const stripExports = source => {
 const withoutRuleImport = auctionSource.replace(/^import\s+\{[^}]+\}\s+from\s+['"]\.\/auction-rules\.mjs['"];?\s*$/gm, '');
 const modules = [
   `const handleApi=(()=>{\n${stripExports(api)}\nreturn handleApi;\n})();`,
-  `const itemSourceHelpers=(()=>{\n${stripExports(eqresourceSource)}\nreturn {fetchItemDetails,searchItemsByName};\n})();`,
-  itemSource ? `const itemCacheHelpers=(()=>{\n${stripExports(itemSource)}\nreturn {createItemApi,cacheItemDetails,getCachedItemDetails,VERIFIED_ITEM_REFERENCES};\n})();\nconst handleItemApi=itemCacheHelpers.createItemApi({fetchItemDetails:itemSourceHelpers.fetchItemDetails});` : '',
+  `const catalogHelpers=(()=>{\n${stripExports(catalogSource)}\nreturn {handleCatalogApi,getCatalogItem,hydrateCatalogItem,catalogReferenceStatement,searchCatalogItems,getCatalogStatus};\n})();`,
+  itemSource ? `const itemCacheHelpers=(()=>{\n${stripExports(itemSource)}\nreturn {createItemApi,cacheItemDetails,getCachedItemDetails,VERIFIED_ITEM_REFERENCES};\n})();\nconst handleItemApi=itemCacheHelpers.createItemApi({catalog:catalogHelpers,fileOnly:true});` : '',
   auctionSource ? `const auctionRuleHelpers=(()=>{\n${stripExports(auctionRuleSource)}\nreturn {proposeAuction,AuctionRuleError};\n})();\nconst handleAuctionApi=(()=>{\nconst {proposeAuction,AuctionRuleError}=auctionRuleHelpers;\n${stripExports(withoutRuleImport)}\nreturn handleAuctionApi;\n})();` : '',
   adminSource ? `const handleAdminApi=(()=>{\n${stripExports(adminSource)}\nreturn handleAdminApi;\n})();` : '',
   `const handleReportsApi=(()=>{\n${stripExports(reportsSource)}\nreturn handleReportsApi;\n})();`,
   `const chatParserHelpers=(()=>{\n${stripExports(logParserSource)}\nreturn {parseLootChannelLine,parseChatLootSources};\n})();`,
-  `const handleLootApi=(()=>{\n${stripExports(lootSource)}\nreturn createLootApi({...itemSourceHelpers,...chatParserHelpers,cacheItemDetails:itemCacheHelpers.cacheItemDetails,knownItems:itemCacheHelpers.VERIFIED_ITEM_REFERENCES});\n})();`,
+  `const handleLootApi=(()=>{\n${stripExports(lootSource)}\nreturn createLootApi({...chatParserHelpers,catalog:catalogHelpers,fileOnly:true,cacheItemDetails:itemCacheHelpers.cacheItemDetails});\n})();`,
   `const handleCaptureApi=(()=>{\n${stripExports(capturesSource)}\nreturn createCaptureApi({parseLootChannelLine:chatParserHelpers.parseLootChannelLine,handleLootApi});\n})();`,
   `const handleDetailsApi=(()=>{\n${stripExports(detailsSource)}\nreturn handleDetailsApi;\n})();`,
-  `const handleEquipmentApi=(()=>{\n${stripExports(equipmentSource)}\nreturn createEquipmentApi({knownItems:itemCacheHelpers.VERIFIED_ITEM_REFERENCES});\n})();`,
+  `const inventoryHelpers=(()=>{\n${stripExports(inventorySource)}\nreturn {createInventoryApi,getInventoryAugments};\n})();\nconst handleInventoryApi=inventoryHelpers.createInventoryApi({catalog:catalogHelpers});`,
+  `const handleEquipmentApi=(()=>{\n${stripExports(equipmentSource)}\nreturn createEquipmentApi({catalog:catalogHelpers,loadInventoryAugments:(db,id)=>inventoryHelpers.getInventoryAugments(db,id,{withOperations:true})});\n})();`,
   `const accessHelpers=(()=>{\n${stripExports(accessSource)}\nreturn {resolveAccess,handleAccessApi};\n})();`,
   `const authorizationHelpers=(()=>{\n${stripExports(authorizationSource)}\nreturn {authorizeRoute,guardedDatabase};\n})();`,
   `const handleAuditLogApi=(()=>{\n${stripExports(auditLogSource)}\nreturn handleAuditLogApi;\n})();`,
-  `const handleMemberOptions=(()=>{\n${stripExports(optionsSource)}\nreturn handleMemberOptions;\n})();`
+  `const handleMemberOptions=(()=>{\n${stripExports(optionsSource)}\nreturn handleMemberOptions;\n})();`,
+  `const handleCompanionDeviceApi=(()=>{\n${stripExports(deviceSource)}\nreturn createCompanionDeviceApi({handleCaptureApi});\n})();`
 ].filter(Boolean).join('\n');
-const bundled = `// Guild Desk v0.5.0 - generated by build.mjs. Edit source files instead.\n${modules}\nconst GUILD_DESK_HTML=${JSON.stringify(html)};\nconst GUILD_DESK_JS=${JSON.stringify(javascript)};\nconst GUILD_DESK_CSS=${JSON.stringify(css)};\n
+const bundled = `// Guild Desk v0.6.0 - generated by build.mjs. Edit source files instead.\n${modules}\nconst GUILD_DESK_HTML=${JSON.stringify(html)};\nconst GUILD_DESK_JS=${JSON.stringify(javascript)};\nconst GUILD_DESK_CSS=${JSON.stringify(css)};\n
 function staticResponse(body, type) {
   return new Response(body, { headers: {
     'Content-Type': type + '; charset=utf-8',
@@ -66,8 +70,9 @@ export default {
     const url = new URL(request.url);
     env = {...env, FEATURE_AUCTIONS:${!!auctionSource}, FEATURE_ADMIN:${!!adminSource}, FEATURE_OWNERSHIP:true, FEATURE_ACCESS:true};
     try {
-      if (url.pathname === '/api/health') return Response.json({service:'guild-desk',version:'0.5.0',database:!!env.DB,storage:env.LOCAL_STORAGE?.persistent?'persistent_sqlite':env.LOCAL_STORAGE?'temporary':'hosted_binding'},{headers:{'Cache-Control':'no-store'}});
+      if (url.pathname === '/api/health') return Response.json({service:'guild-desk',version:'0.6.0',database:!!env.DB,storage:env.LOCAL_STORAGE?.persistent?'persistent_sqlite':env.LOCAL_STORAGE?'temporary':'hosted_binding'},{headers:{'Cache-Control':'no-store'}});
       if (url.pathname.startsWith('/api/companion/')) return await handleCaptureApi(request,env,{});
+      if (url.pathname.startsWith('/api/companion-device/')) return await handleCompanionDeviceApi(request,env,{});
       if (['/api/me','/api/register','/api/login','/api/logout'].includes(url.pathname)) {
         const response=await handleApi(request,env);
         if(response.ok&&url.pathname!=='/api/logout'){
@@ -94,7 +99,10 @@ export default {
         response=await handleItemApi(new Request(catalog,request),scopedEnv,auth);
       } else {
       const featureHandler = url.pathname==='/api/access'||url.pathname.startsWith('/api/access/') ? accessHelpers.handleAccessApi :
+        (url.pathname==='/api/catalog'||url.pathname.startsWith('/api/catalog/')) ? catalogHelpers.handleCatalogApi :
+        new RegExp('^/api/characters/[^/]+/inventory/(?:preview|import)$').test(url.pathname) ? handleInventoryApi :
         url.pathname==='/api/audit' ? handleAuditLogApi :
+        (url.pathname==='/api/companion-devices'||url.pathname.startsWith('/api/companion-devices/')) ? handleCompanionDeviceApi :
         ['/api/raid-options','/api/attendance-requests/options','/api/ledger/characters'].includes(url.pathname) ? handleMemberOptions :
         new RegExp('^/api/characters/[^/]+/equipment(?:/[^/]+)?$').test(url.pathname) ? handleEquipmentApi :
         (new RegExp('^/api/raids/[^/]+/ticks/[^/]+$').test(url.pathname)||new RegExp('^/api/reports/mains/[^/]+/loot$').test(url.pathname)) ? handleDetailsApi :

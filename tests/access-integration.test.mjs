@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import worker from '../dist/server/index.js';
 import {createD1} from './d1-adapter.mjs';
 import {applicationSchema} from './app-schema.mjs';
+import {uploadTestCatalog} from './catalog-fixture.mjs';
 const origin='https://guild.test';
 async function fixture(){
  const DB=createD1(await applicationSchema());
  const call=async(path,method='GET',body,auth,extra={})=>{const response=await worker.fetch(new Request(origin+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(auth?{Cookie:auth.cookie,'X-CSRF-Token':auth.csrfToken}:{}),...extra},...(body===undefined?{}:{body:JSON.stringify(body)})}),{DB},{});return{status:response.status,body:await response.json(),headers:response.headers};};
  const register=async name=>{const r=await call('/api/register','POST',{name,email:name+'@access.test',password:'Integration access password123!'});assert.equal(r.status,201);return{...r.body,cookie:r.headers.get('set-cookie').split(';')[0]};};
  const admin=await register('Administrator'),member=await register('Member'),other=await register('Other');
+ await uploadTestCatalog(worker,DB,origin,admin);
  const assign=async(user,profileId,overrides={},actor=admin)=>{const r=await call('/api/access','GET',undefined,actor);assert.equal(r.status,200,JSON.stringify(r.body));const u=r.body.users.find(u=>u.id===user.user.id);return call('/api/access/users/'+u.id,'PUT',{profileId,overrides,expectedRevision:u.revision},actor);};
  const character=async(auth,name)=>{const r=await call('/api/characters','POST',{name,level:85,className:'Monk'},auth);assert.equal(r.status,201,JSON.stringify(r.body));assert.equal((await call('/api/claims/'+r.body.claim.id+'/approve','POST',{kind:'main'},admin)).status,200);return r.body.character.id;};
  const native=async(token,path='/api/companion/session',body)=>{const r=await worker.fetch(new Request(origin+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}),{DB},{});return{status:r.status,body:await r.json()};};

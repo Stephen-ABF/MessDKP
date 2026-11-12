@@ -17,13 +17,15 @@ Successful output has `status: proposed`, `proposedAwards`, `unawardedCopies`, `
 # Confirmed live policies
 
 1. One approved main per website account; approved owned mains alone may bid.
-2. Whole DKP and increment 1; default minimum 1. No reservation or affordability gate.
+2. Whole DKP and increment 1; default minimum 1. Each newly submitted or edited bid is capped at the main's current DKP balance. No points are reserved and bids across separate auctions are not summed.
 3. Top quantity distinct people receive at most one copy each. Each pays next-ranked eligible bid plus 1 capped at their bid; a winner without a lower bid pays minimum. Four copies and bids100/80 yield charges81/1.
 4. Bids may be raised, lowered, or withdrawn until exactly24 hours after publishing. Changes at the deadline are rejected using the database clock.
 5. Current-amount first-submission priority resets only on an actual change or rebid following withdrawal. Atomic database order breaks same-millisecond ties.
 6. Before closing, members and officers see only their own bids and bid events. After closing, guild members see all final bids, results and full auction bid history.
 7. Officers confirm each award individually. Only confirmation deducts DKP; negative balances remain permitted.
 8. Classes are search filters and reference metadata, not automatic bid restrictions. Source metadata is snapshotted on auction creation.
+
+Version0.6 updates the earlier unlimited-per-bid policy. The live adapter checks current balance atomically when accepting a new/edited bid; the pure proposal engine settles already accepted bids and intentionally ignores later balance changes. A main with35 DKP may bid35 on several items independently. Confirmed awards may subsequently make the balance negative; existing bids are not retroactively reduced or disqualified. Withdrawal remains available at zero or negative balances.
 
 # Remaining backlog decisions
 

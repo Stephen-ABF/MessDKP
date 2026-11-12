@@ -15,3 +15,8 @@ Apply `worker/equipment.sql` through the normal additive migration path. Equipme
 The bundled worker uses `createEquipmentApi({knownItems: VERIFIED_ITEM_REFERENCES})` so verified starter items already visible in catalog searches can be selected on a fresh database. A missing starter reference is inserted from those server-supplied facts in the same transaction as the authorized, optimistic equipment change and audit. Reads do not seed the database; arbitrary uncached client IDs remain rejected. Failed ownership guards and rolled-back audits leave no new reference behind. The standalone `handleEquipmentApi` export uses no starter facts by default.
 
 When an access context is present, `canEdit` and mutation preflight require level3 for Overview or Mains and attendance. A missing, null or read-only permission map cannot use an administrator role to override that restriction. The standalone handler without an access context retains owner-only compatibility for bounded module tests; production requests pass through the bundled access middleware. Audit details snapshot `subjectUserId` as the actual owner performing each gear change.
+
+
+## Inventory export import
+
+Approved owners can initialize equipped slots and installed augments through the Inventory subtab. See INVENTORY.md for file format, preview/replacement rules and atomic access checks.

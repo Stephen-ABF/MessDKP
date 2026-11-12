@@ -1,3 +1,25 @@
+# Graphical companion workflow v0.6
+
+Use companion/Start-Companion.cmd for the saved local graphical companion. Choose the EQ log once, create a device connection under Live loot capture, and open the website's loopback connection link. The local page stages the proposed origin and requires an explicit Connect click. It remembers the log and scoped device credential.
+
+For each boss, create its capture and activate the saved device. Wait for Watching before posting loot: native readiness is acknowledged only after local watcher initialization. Paired does not imply ready, and a device heartbeat older than thirty seconds is treated as offline. Captures still require review and a boss-draft handoff before publication.
+
+Device endpoints (same-origin web session with capture permissions):
+- GET /api/companion-devices lists the caller's own devices, without credentials.
+- POST /api/companion-devices {label} returns {device,pairing:{siteUrl,code}}. The random one-time code expires in ten minutes.
+- POST /api/companion-devices/:id/activate {captureId} binds the caller's connected device to the caller's open capture; matching retries are safe.
+- POST /api/companion-devices/:id/revoke {} stops its native access.
+
+Native endpoints under /api/companion-device reject Origin headers. Claim accepts {code,deviceToken}; the companion generates and durably saves its proposed token before every claim/retry. Matching retries preserve a lost response, while another token cannot claim an already used code. Session returns {device,capture}; events require {captureId,watcherId,events}. Ready acknowledgement marks only the currently bound capture; Pause clears readiness. Device tokens expire after thirty days and are stored server-side only as hashes.
+
+A device guard is inserted inside every native ingestion transaction and checks its token, current active capture, expiry and current capture-write permission for device/capture creator. Device activation cannot redirect an old queued event to a new boss. Losing capture permission stops the device immediately at the next guarded request.
+
+The local GUI uses exact Host/Origin/CSRF validation, no CORS, and loopback binding. It never follows remote redirects or copies browser cookies. File selection is remembered in private local state. No OS startup task or recurring schedule is installed.
+
+Offline old-capture queues remain in their original namespace. If an old capture was finished before its queue could upload, the local GUI supports explicit text export and a confirmed hold for manual officer review. The original queue file remains intact and is never retargeted. A fresh next-capture watcher starts at EOF, so post loot only after Watching.
+
+Manual JSON pairing remains an advanced fallback through companion/Advanced-Manual-Companion.cmd and companion/legacy-start.mjs. The legacy capture API below is retained.
+
 # Live loot capture v0.3
 
 The native Node24 companion reads one selected EverQuest log file. It filters the dedicated abfloot chat locally and sends only matching complete messages to Guild Desk. No game injection, packet capture, account-password collection or automatic auctions are involved. All guild DKP rules remain unchanged.
@@ -42,3 +64,7 @@ Apply immutable migration0002 after0000 and0001. No accounts or guild data are s
 ## Hosting compatibility
 
 The persistent local server accepts the capture-scoped native API directly. Hosted authentication gates may redirect native requests before the application receives them. Native requests do not have browser cookies and never forward capture tokens across redirects. Verify an authorized reachable hosted API before claiming hosted companion compatibility. No authentication-gate bypass is provided.
+
+## Access revocation
+
+With access profiles enabled, the creator must retain captures.write for native pairing credentials to read or ingest. The server checks this again inside the ingestion transaction, so revocation prevents late uploads without discarding the companion queue. A delegated Officer profile works without modifying the legacy database role. Preparing a boss draft also requires loot.write; publishing it additionally requires auctionAdmin.write.

@@ -125,7 +125,22 @@ test('more than 50 pieces publish as a single boss batch and source lookups stay
   const unknown=await create(h,Array.from({length:25},(_,n)=>`Unknown ${n}`).join('\n'));const match=await h.call(`/api/loot/drafts/${unknown.id}/match`,'POST',{expectedRevision:unknown.revision});assert.equal(match.status,200);assert.equal(match.body.searched,10);assert.equal(match.body.remaining,25);assert.equal(searches,10);
  }finally{h.close();}
 });
+
+test('basic source matching preserves full base, Darkened and Fabled names as three separate loot items',async()=>{
+ const requested=[];const h=harness({searchItemsByName:async(name,options)=>{requested.push(name);assert.equal(options.timeoutMs,5000);const id=name.startsWith('Darkened ')?71:72;return{status:'matched',candidates:[candidate(id,name),candidate(70,'Fixture Helm','candidate')]};},fetchItemDetails:async(id,options)=>{assert.equal(options.timeoutMs,3000);return{itemId:id,name:'Fixture Helm',metadataStatus:'verified_reference'};}});try{
+  h.ref(70,'Fixture Helm');let d=await create(h,'Fixture Helm\nDarkened Fixture Helm\nFabled Fixture Helm');assert.equal(d.items.length,3);assert.equal(d.items[0].itemId,70);
+  const r=await h.call(`/api/loot/drafts/${d.id}/match`,'POST',{expectedRevision:d.revision});assert.equal(r.status,200,JSON.stringify(r.body));d=r.body.draft;
+  assert.deepEqual(requested.sort(),['Darkened Fixture Helm','Fabled Fixture Helm']);assert.deepEqual(d.items.map(i=>i.displayName),['Fixture Helm','Darkened Fixture Helm','Fabled Fixture Helm']);assert.deepEqual(d.items.map(i=>i.itemId),[70,71,72]);assert.ok(d.items.every(i=>i.matchStatus==='matched'));assert.equal(d.sources[0].text,'Fixture Helm\nDarkened Fixture Helm\nFabled Fixture Helm');
+ }finally{h.close();}
+});
+test('source item IDs conflicting with a cached prefixed identity remain unresolved instead of renaming cached gear',async()=>{
+ const h=harness({searchItemsByName:async name=>({status:'matched',candidates:[candidate(73,name)]}),fetchItemDetails:async()=>{throw Error('Detail source unavailable');}});try{
+  h.ref(73,'Fabled Fixture Helm');let d=await create(h,'Darkened Fixture Helm');const r=await h.call(`/api/loot/drafts/${d.id}/match`,'POST',{expectedRevision:d.revision});assert.equal(r.status,200);d=r.body.draft;assert.equal(d.items[0].matchStatus,'ambiguous');assert.equal(d.items[0].itemId,null);assert.equal(h.DB.raw.prepare('SELECT name FROM item_references WHERE item_id=73').get().name,'Fabled Fixture Helm');assert.equal(count(h,'auctions'),0);
+ }finally{h.close();}
+});
 test('item history includes legacy auctions plus boss quantities once and never leaks active sealed bids',async()=>{const h=harness();try{
+ for(const[who,balance]of[['alice',1234567],['bob',7654321]])h.DB.raw.prepare('INSERT INTO ledger(id,character_id,amount,reason,actor_id,created_at,operation_id) VALUES(?,?,?,?,?,?,?)').run('opening-'+who,'char-'+who,balance,'Explicit fixture starting DKP','officer',new Date(h.time).toISOString(),'opening-'+who);
+ const openingLedger=count(h,'ledger');
  const manual=await h.call('/api/auctions','POST',{itemId:1,quantity:2},h.users.officer,{},h.auctionApi);assert.equal(manual.status,201,JSON.stringify(manual));const a=manual.body.auction;
  for(const[who,amount]of[['alice',1234567],['bob',7654321]])assert.equal((await h.call(`/api/auctions/${a.id}/bid`,'PUT',{amount},h.users[who],{},h.auctionApi)).status,200);
  const d=await create(h,'4 x Sample Ring',{raidId:'raid-1'});await publish(h,d);await create(h,'Sample Ring');
@@ -133,6 +148,6 @@ test('item history includes legacy auctions plus boss quantities once and never 
  h.setTime(Date.parse(a.closesAt));const unsettled=await h.call('/api/loot/items/1/history');assert.ok(unsettled.body.auctions.every(a=>!a.resultsReady&&a.bids===null));
  assert.equal((await h.call(`/api/auctions/${a.id}/close`,'POST',undefined,h.users.alice,{},h.auctionApi)).status,200);
  const history=await h.call('/api/loot/items/1/history?limit=1','GET',undefined,h.users.alice);assert.equal(history.body.appearanceCount,2);assert.equal(history.body.auctions.length,1);
- const full=await h.call('/api/loot/items/1/history','GET',undefined,h.users.alice);const previous=full.body.auctions.find(x=>x.id===a.id);assert.deepEqual(previous.bids.map(b=>b.amount),[7654321,1234567]);assert.equal(previous.awards.length,2);assert.equal(previous.awards[0].price,1234568);assert.equal(previous.awards[0].status,'pending');assert.equal(count(h,'ledger'),0);
+ const full=await h.call('/api/loot/items/1/history','GET',undefined,h.users.alice);const previous=full.body.auctions.find(x=>x.id===a.id);assert.deepEqual(previous.bids.map(b=>b.amount),[7654321,1234567]);assert.equal(previous.awards.length,2);assert.equal(previous.awards[0].price,1234568);assert.equal(previous.awards[0].status,'pending');assert.equal(count(h,'ledger'),openingLedger);
  assert.equal(await h.call('/api/other'),null);
 }finally{h.close();}});

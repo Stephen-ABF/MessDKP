@@ -1,0 +1,11 @@
+CREATE TABLE catalog_imports (id TEXT PRIMARY KEY, file_name TEXT NOT NULL, file_sha256 TEXT NOT NULL UNIQUE, source_date TEXT, header_json TEXT NOT NULL CHECK(json_valid(header_json) AND json_type(header_json)='array'), field_count INTEGER NOT NULL, status TEXT NOT NULL CHECK(status IN('staging','ready','active','archived','failed')), item_count INTEGER NOT NULL DEFAULT 0, decoded_bytes INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, finished_at TEXT, error TEXT, operation_id TEXT);
+--> statement-breakpoint
+CREATE TABLE catalog_items (import_id TEXT NOT NULL REFERENCES catalog_imports(id), item_id INTEGER NOT NULL CHECK(item_id>0), name TEXT NOT NULL, name_key TEXT NOT NULL, classes_mask INTEGER NOT NULL, races_mask INTEGER NOT NULL, slots_mask INTEGER NOT NULL, raw_record TEXT NOT NULL, PRIMARY KEY(import_id,item_id));
+--> statement-breakpoint
+CREATE INDEX catalog_items_name ON catalog_items(import_id,name_key,item_id);
+--> statement-breakpoint
+CREATE TABLE catalog_state (id INTEGER PRIMARY KEY CHECK(id=1), active_import_id TEXT REFERENCES catalog_imports(id), revision INTEGER NOT NULL DEFAULT 0, operation_id TEXT);
+--> statement-breakpoint
+INSERT INTO catalog_state(id) VALUES(1);
+--> statement-breakpoint
+CREATE UNIQUE INDEX catalog_single_active ON catalog_imports(status) WHERE status='active';

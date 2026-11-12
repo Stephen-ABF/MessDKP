@@ -13,6 +13,5 @@ if errorlevel 1 (
  pause
  exit /b 1
 )
-node companion\start.mjs
-if errorlevel 1 echo The companion paused or stopped. Follow the message above. Pending events were not deleted.
-pause
+powershell.exe -NoProfile -NonInteractive -Command "Start-Process -FilePath (Get-Command node).Source -ArgumentList @('companion/start.mjs') -WorkingDirectory (Get-Location).Path -WindowStyle Hidden"
+exit /b

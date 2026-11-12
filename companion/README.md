@@ -1,41 +1,44 @@
-# Guild Desk EverQuest companion
+# Guild Desk loot companion
 
-This small Node.js24+ console application reads one selected native EverQuest client log and forwards only item-bearing messages from the capture's dedicated loot channel. It does not install an extension, alter game files, inject code, or read other log files. Keep the console open while capturing; a browser tab cannot watch your local game log by itself.
+The normal launcher opens a small graphical companion at http://127.0.0.1:4831. It reads only the EverQuest log you choose and forwards matching loot-channel messages. It does not inject game code or change game files, auctions or DKP.
 
-## Start a capture
+## First setup
 
-1. In Guild Desk's officer menu, open Live loot capture, enter the boss, create a capture, and copy its pairing JSON. The token grants access only to that capture, not to member accounts or bidding.
-2. On Windows, double-click `companion/Start-Companion.cmd`. Alternatively run `node companion/start.mjs` from the project root. Node.js24 or later must already be available.
-3. Paste the JSON configuration and press Enter. Compact single-line JSON and formatted multiline JSON are supported. Input is hidden so the token does not enter terminal scrollback. Never put tokens or account passwords on the command line.
-4. Enter the exact EverQuest character log file path, for example the chosen character's file inside the game's Logs directory. Quoted paths copied from Explorer are accepted. The companion does not search the directory or choose a different file.
-5. In EverQuest, enable native logging with `/log on`. Join the dedicated `abfloot` channel and send the item-name messages there using the guild's capture procedure. Channel numbers such as `abfloot:4` may differ; channel name and the capture's optional sender allowlist control selection. A message containing several item names separated by `|` is sent intact, including repeated item names.
-6. Keep the console open. A new capture starts at the current end of the selected log, excluding existing history. If it starts halfway through a line, that old line's continuation is skipped through its newline. Complete subsequent messages are captured. The companion forwards the original full line without its CRLF/LF terminator, together with only the basename and byte offset; no full filesystem path or unrelated chat is uploaded.
-7. Refresh the capture, review messages/copies, and finish it to prepare a boss draft. Match item IDs and publish only after manager review. This companion does not create item statistics, resolve ambiguous names, award loot, deduct DKP, or bid.
+1. Run Start-Companion.cmd with Node.js 24 or later installed.
+2. Click Choose log file and select your EverQuest eqlog text file. The native Windows picker is used; Advanced also accepts a path.
+3. In Guild Desk, open Live loot capture, create a named companion connection, and click its connection link.
+4. The local window displays the proposed Guild Desk site. Check the address, then click Connect and monitor. It never connects merely because a link was opened.
 
-## Restart and recovery
+The selected log and scoped connection are saved in companion/state. There is no JSON to copy in the normal workflow. If you connected before choosing the log, choose it and click Start monitoring.
 
-If the one-time pairing was lost or expired, open that SAME capture in Guild Desk and choose Reconnect companion. Copy the new pairing and restart with the original companion/state directory. Only the latest pairing works. The capture identity, saved queue and event retry keys are retained; do not create a new boss capture merely to recover an old queue.
+## Each boss
 
-The capture stores a stable watcher identity, generation, byte cursor, bounded file identity/anchors, and pending selected messages under `companion/state/<captureId>.json`. This directory is ignored by Git. It contains no pairing token, password, full log path, or unrelated chat. Selected loot-channel lines remain plaintext while pending; protect this directory as you protect guild records.
+Create a capture in Guild Desk and select your saved companion. Wait until Watching appears before posting loot on abfloot. New captures start at the log's end so old chat is not reimported. The website receives a readiness acknowledgement only after the watcher initializes; being paired alone is not readiness. The companion remembers the log and connects to the next assigned boss without another pairing or file selection.
 
-Paste pairing JSON for the same capture and choose the same log to resume. Do not delete its state file to fix a connection problem: a replacement watcher is a different source identity, and the server deliberately prevents two concurrent watchers from binding to one capture. Only one console should watch a capture.
+Review received loot in Guild Desk, finish the capture, and prepare its boss draft. Capturing never publishes an auction or charges points.
 
-An exclusive `<captureId>.json.lock` is acquired before any checkpoint is read or initialized and held until the watcher closes. A second console fails closed without touching the first console's state or lock. A crash or forced window close can leave a stale lock. There is deliberately no automatic stale takeover: first close every companion process for that capture, preserve the JSON state file, and remove only the corresponding `.json.lock` before restarting. Never delete a lock while a companion might still be running. The lock contains only process/instance metadata, never a pairing token.
+Keep EverQuest /log enabled. Pause stops monitoring; Exit companion stops the local background process. Closing only the browser tab leaves the companion running. Opening the launcher again reopens the existing companion rather than creating another writer. No Windows startup entry, scheduled task, or recurring automation is installed.
 
-Each selected line is durably queued in an atomic state replacement before its cursor advances. Failed or uncertain requests retry the same SHA-256 event IDs. A complete acknowledgement removes only the acknowledged batch. The companion sends at most50 events and256 KiB of encoded JSON per request. Network failures use bounded retry delays and retain the queue. The default queue holds up to1000 messages or8 MiB; at its limit reading pauses at the next selected line without skipping it, and resumes after acknowledged uploads free capacity. Keep the source log until recovery.
+## Connection and privacy
 
-HTTP403,409,410 and other nontransient client errors pause capture rather than discarding selected messages. A closed, expired, changed, full or source-conflicting capture must be reviewed in Guild Desk. Pending records stay on disk; restart with the same capture only if an officer restores it. Do not repurpose an old pending queue for a different boss. A malformed matching line, oversized line, unsupported encoding or unwritable/corrupt checkpoint also pauses without advancing past the affected source data. Restore the state/source or ask for help; there is no automatic skip or historical replay switch.
+The one-time connection link expires after ten minutes. The device credential is scoped to the current assigned capture and expires after thirty days or revocation. Keep companion/state private: it contains the chosen path, device credential and durable selected-message queues. Server storage retains credential hashes rather than raw tokens. Web passwords and session cookies are never copied to the companion.
 
-Reads are bounded to256 KiB per poll and incomplete lines are buffered until a newline. Reads poll once a second when network operations permit. A rotated file's existing open handle is drained before the replacement is read from byte0. Truncation and replacement, including same-sized overwrites detected by file identity or checkpoint anchors, start a new generation while retaining queued messages. An unfinished fragment at the end of a rotated file is not invented into a complete event; the console reports it for manual inspection. If the process was stopped during rotation, unread bytes in an old renamed file cannot be recovered automatically without selecting that source explicitly; other paths are never searched.
+Remote requests use HTTPS, except HTTP localhost/127.0.0.1 for local testing. Redirects are rejected, so a hosted login redirect does not silently become a successful connection. Hosted outer-login compatibility remains unverified. Connection origin replacement requires an explicit confirmation.
 
-UTF-8 is decoded strictly first, with a Windows1252 fallback for legacy single-byte logs. This covers ordinary Latin-1-range text and Windows punctuation. UTF-16 logs are rejected. Keep the original game log and inspect unusual encoding in the web draft. The shared server/client loot parser determines whether a dedicated-channel line contains item names; empty or unrelated messages are not queued.
+The local web interface binds only to 127.0.0.1. Mutations require its exact Origin and per-process CSRF token; Host validation prevents DNS rebinding and cross-site API requests are rejected. Website links may navigate to the local page, but the fragment is cleared and staged for a deliberate Connect action. No token is sent automatically from a navigation.
 
-## Connection security
+## Retained queues and recovery
 
-Pairing accepts only an HTTPS site root, or HTTP `localhost`/`127.0.0.1` for local tests, without URL credentials, paths, queries or fragments. The token is held only in process memory and sent in the Authorization header. Requests reject redirects, so credentials are not forwarded to a new URL, and time out after15 seconds. Stopping the process releases its in-memory token. Pairing tokens should be revoked or replaced through Guild Desk when needed.
+Every queue remains bound to its original capture. Stable watcher/event IDs and server acknowledgement checks make uncertain retries safe. Exact channel matching is independent of numeric channel slot; unrelated chat is not uploaded.
 
-If pairing credentials were accidentally pasted into the dedicated game channel, the companion pauses before queuing or uploading that matching line. Review the original locally and revoke the exposed token. It does not rewrite or delete the game log.
+If a previous boss has queued messages when another boss becomes active, monitoring stops for review. Reactivate the old capture while it is still open to retry its queue. If the old capture was already finished, save its queued text for manual officer review, confirm the review responsibility, and choose Hold this queue and continue. This retains the original queue file and records it in Held for review; it does not copy those events into the next boss or delete them. Held queues can be exported individually after restart, even across later connections. Exported text must be reviewed before manual import.
 
-This is a native log reader using supported file access. It does not bypass game protections, automate gameplay, or inspect game process memory. No installer or browser extension is included or needed beyond Node.js24+.
+A corrupt state or ambiguous capture lock fails closed. Do not delete queue JSON files to get past an error. If a saved GUI lock remains after a crash, verify every companion process is stopped before removing only gui.lock. Capture locks use the existing strict recovery procedure; never remove a lock owned by another running process.
 
-Run companion verification from the project root with `node --test tests/companion.test.mjs`.
+## Advanced manual capture mode
+
+Advanced-Manual-Companion.cmd (or node companion/legacy-start.mjs) retains the older per-capture hidden JSON pairing console for troubleshooting. The normal graphical workflow uses node companion/start.mjs. Do not place tokens or passwords in command-line arguments.
+
+## Verification
+
+Tests use disposable directories, injected file pickers and local test ports. They cover local Origin/Host/CSRF controls, explicit connection consent, saved settings, claim durability through failed writes, readiness retries, slow-poll coalescing, real-file offline queues, isolated boss handoff, held exports and restart recovery. No test opens the owner's real file picker or running preview. The graphical setup and remembered selection were also checked in a desktop browser using a disposable log and injected picker. The native Windows file-picker interaction still requires first-run user testing.

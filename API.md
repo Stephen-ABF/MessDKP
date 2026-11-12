@@ -1,4 +1,4 @@
-# Guild Desk API v0.5
+# Guild Desk API v0.6
 
 Private owner-only test deployment. The first successful registration atomically becomes administrator; this bootstrap is safe only while the Sites access gate is owner-only. Do not widen access before the owner has registered. Subsequent registrations are members. Passwords use PBKDF2 SHA-256 with 100000 iterations and an independent 256-bit salt, compatible with the Workers WebCrypto iteration limit. No password recovery or email delivery in this slice.
 
@@ -38,9 +38,11 @@ Character creation accepts names matching `[A-Za-z][A-Za-z'-]{1,63}`, numeric wh
 
 `ImportPreview`: `{name,sourceTime,rowCount,status:"new"|"duplicate",eligibleMains:number,unclaimed:number,alts:number,warnings:[string]}`. Parse/conflict errors reject the complete request before write. `Attendance`: `{id,tickId,characterId,characterName,className,zone,status:"pending"|"credited"|"ineligible",dkp:number}`.
 
+Attendance imports seed a registry character's name, level, class and guild rank only when that name first enters the registry. Later captures do not change those fields, approved ownership, main/alt status or identity, including when an EverQuest persona reports another class. A manually requested character is already registered and likewise retains its chosen metadata on its first import. Persona class differences produce no warning. New attendance rows display the canonical registry class; each immutable tick's raw text retains the actual class, level, rank and zone observed in the capture. This does not edit historical rows or recalculate DKP. Officer-directed character metadata changes are separate future work.
+
 `LedgerEntry`: `{id,characterId,characterName,amount,reason,createdAt,actorName,raidName:null|string,sourceTime:null|string}`. `AuditEntry`: `{id,actorName,action,details,createdAt}`. Ledger/audit lists are capped at the newest 500 entries for this initial slice.
 
-No DKP reservations, affordability blocks, or automatic main/alt inference from guild rank/notes are implemented. Main classification and account assignment occur together on officer claim approval. Source files are retained in the database but not exposed to members. A snapshot capture identity is guild/server/filename time, globally unique across raids. Upload suffixes such as `(1)` are ignored; repeated equivalent contents do not duplicate points. Same capture with conflicting contents or another raid assignment is rejected for officer review. Separate filename times remain distinct ticks even when roster content matches. Imports accept 1-10 dumps, each with 1-500 rows and at most 1 MiB text; complete JSON bodies are capped at 5 MiB. Original trailing tab fields must be preserved. Source times remain timezone-unconfirmed. Claims can refer to an imported character or an explicitly requested new character. Officers may correct ownership by audited detachment and reapproval (OWNERSHIP.md). Role management and password recovery remain unavailable.
+No cross-item DKP reservations or automatic main/alt inference from guild rank/notes are implemented. Main classification and account assignment occur together on officer claim approval. Source files are retained in the database but not exposed to members. A snapshot capture identity is guild/server/filename time, globally unique across raids. Upload suffixes such as `(1)` are ignored; repeated equivalent contents do not duplicate points. Same capture with conflicting contents or another raid assignment is rejected for officer review. Separate filename times remain distinct ticks even when roster content matches. Imports accept 1-10 dumps, each with 1-500 rows and at most 1 MiB text; complete JSON bodies are capped at 5 MiB. Original trailing tab fields must be preserved. Source times remain timezone-unconfirmed. Claims can refer to an imported character or an explicitly requested new character. Officers may correct ownership by audited detachment and reapproval (OWNERSHIP.md). Access profiles are configured through ACCESS.md; password recovery remains unavailable.
 
 The integrated private build also includes auction routes in [AUCTIONS.md](AUCTIONS.md), attendance requests/settings/adjustments in [ADMIN.md](ADMIN.md), item details in [ITEMS.md](ITEMS.md), main attendance reports in [REPORTS.md](REPORTS.md), and boss loot preparation/history in [LOOT.md](LOOT.md). Source enrichment is documented in [EQRESOURCE.md](EQRESOURCE.md). Module availability does not imply completed deployment or live source verification.
 
@@ -53,3 +55,14 @@ Authenticated character equipment reads and owner/officer loadout changes are do
 ## Access and filtered audit
 
 See ACCESS.md for profiles, overrides, revisions and last-manager protection, and AUDIT.md for database-filtered historical audit queries. The generated Worker enforces permissions and atomic revocation guards. Shared profile item hovers are separate from officer catalog management. Narrow dependency routes include GET /api/raid-options (loot/capture/attendance readers), /api/ledger/characters (ledger writers), /api/attendance-requests/options (own eligible missing ticks), and /api/characters/:id/equipment/references (own profile writers). These do not expose raw attendance dumps or grant management rights.
+
+## Version0.6 rules
+
+Each newly accepted bid or edit must be at most the current approved main ledger balance inside the acceptance transaction. Other auction commitments do not reserve points. Accepted bids survive later balance changes and remain chargeable into a negative balance. Canonical character class/level/rank are seeded once, while source captures preserve observed persona details. Optional blank audit dates mean no filter. Persistent companion device routes and the graphical setup are documented in CAPTURES.md and companion/README.md.
+
+
+## Uploaded catalog and inventory (0.6)
+
+GET /api/catalog requires items.read. POST /api/catalog/import requires items.write, same origin and CSRF, multipart file/expectedRevision/optional sourceDate. The upload is capped at 32 MiB compressed/plain and 256 MiB expanded; activation is atomic. POST /api/catalog/imports/:id/discard cancels incomplete staging only.
+
+POST /api/characters/:id/inventory/preview accepts JSON {fileName,text}; POST .../inventory/import accepts {importId,fileName,text,selections:[{slotKey,expectedItemId}]}. Both require approved ownership and overview.write or mains.write, same origin and CSRF. Text is capped at 2 MiB. The server reparses on commit, atomically guards selected slots, caches selected uploaded details and stores installed augments; no DKP/award writes.

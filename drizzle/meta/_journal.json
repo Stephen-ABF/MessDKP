@@ -50,6 +50,27 @@
       "when": 1794492962055,
       "tag": "0006_access_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1794496043760,
+      "tag": "0007_companion_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794498684807,
+      "tag": "0008_uploaded_item_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794498684808,
+      "tag": "0009_inventory_imports",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,26 @@
+Mainhero	80	Warrior	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1000	01/01/26	Artificial example; not an ownership claim	
+DemocharA	80	Paladin	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1002	01/01/26	Artificial example; not an ownership claim	
+DemocharB	80	Ranger	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1003	01/01/26	Artificial example; not an ownership claim	
+DemocharC	80	Shadow Knight	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1004	01/01/26	Artificial example; not an ownership claim	
+DemocharD	80	Druid	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1005	01/01/26	Artificial example; not an ownership claim	
+DemocharE	80	Monk	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1006	01/01/26	Artificial example; not an ownership claim	
+DemocharF	80	Bard	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1007	01/01/26	Artificial example; not an ownership claim	
+DemocharG	80	Rogue	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1008	01/01/26	Artificial example; not an ownership claim	
+DemocharH	80	Shaman	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1009	01/01/26	Artificial example; not an ownership claim	
+DemocharI	80	Necromancer	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1010	01/01/26	Artificial example; not an ownership claim	
+DemocharJ	80	Wizard	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1011	01/01/26	Artificial example; not an ownership claim	
+DemocharK	80	Magician	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1012	01/01/26	Artificial example; not an ownership claim	
+DemocharL	80	Enchanter	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1013	01/01/26	Artificial example; not an ownership claim	
+DemocharM	80	Beastlord	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1014	01/01/26	Artificial example; not an ownership claim	
+DemocharN	80	Berserker	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1015	01/01/26	Artificial example; not an ownership claim	
+DemocharO	80	Warrior	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1016	01/01/26	Artificial example; not an ownership claim	
+DemocharP	80	Cleric	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1017	01/01/26	Artificial example; not an ownership claim	
+DemocharQ	80	Paladin	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1018	01/01/26	Artificial example; not an ownership claim	
+DemocharR	80	Ranger	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1019	01/01/26	Artificial example; not an ownership claim	
+DemocharS	80	Shadow Knight	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1020	01/01/26	Artificial example; not an ownership claim	
+DemocharT	80	Druid	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1021	01/01/26	Artificial example; not an ownership claim	
+DemocharU	80	Monk	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1022	01/01/26	Artificial example; not an ownership claim	
+DemocharV	80	Bard	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1023	01/01/26	Artificial example; not an ownership claim	
+DemocharW	80	Rogue	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1024	01/01/26	Artificial example; not an ownership claim	
+DemocharX	80	Shaman	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1025	01/01/26	Artificial example; not an ownership claim	
+DemocharY	80	Necromancer	Demo Member		01/01/26	Demo Zone	Artificial example; not an ownership claim		on	off	1026	01/01/26	Artificial example; not an ownership claim	

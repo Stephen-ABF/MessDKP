@@ -1,0 +1,12 @@
+{
+  "name": "guild-desk",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs --local",
+    "start": "node server.mjs",
+    "companion": "node companion/start.mjs",
+    "test": "node --test"
+  }
+}

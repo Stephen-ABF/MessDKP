@@ -1,0 +1,78 @@
+name: Versioned release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate release version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module -e 'import{readFileSync}from"node:fs";const p=JSON.parse(readFileSync("package.json","utf8"));if(process.env.RELEASE_TAG!=="v"+p.version||!/^\d+\.\d+\.\d+$/.test(p.version))throw Error("Tag must equal v plus the package version.");'
+      - name: Build without hosting identity
+        run: node build.mjs --local
+      - name: Run application and companion tests
+        run: node --test
+      - name: Package safe tracked source and Worker
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, pathlib, re, stat, subprocess, zipfile
+          root = pathlib.Path.cwd()
+          version = os.environ['RELEASE_TAG']
+          if not re.fullmatch(r'v\d+\.\d+\.\d+', version):
+              raise SystemExit('Invalid release tag')
+          top = {'README.md','PUBLIC_RELEASE.md','PUBLIC_SOURCE.json','API.md','AUCTIONS.md','AUCTION_RULES.md','ADMIN.md','ITEMS.md','REPORTS.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','package.json','build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','.gitignore'}
+          folders = {'worker','web','tests','local','companion','drizzle','scripts'}
+          extensions = {'.mjs','.js','.html','.css','.sql','.json','.md','.cmd'}
+          tracked = subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
+          selected = []
+          for name in filter(None, tracked):
+              p = pathlib.PurePosixPath(name)
+              if any(part in {'.git','.openai','dist','outputs','data','logs','state','node_modules'} for part in p.parts):
+                  continue
+              allowed = name in top or name in {'.github/workflows/ci.yml','.github/workflows/release.yml','companion/.gitignore'}
+              allowed = allowed or (len(p.parts)==2 and p.parts[0] in folders and p.suffix in extensions-{'.json'} and all(not part.startswith('.') for part in p.parts)) or name=='drizzle/meta/_journal.json'
+              allowed = allowed or bool(re.fullmatch(r'tests/fixtures/DemoGuild_test-\d{8}-\d{6}\(1\)\.txt', name))
+              if not allowed:
+                  continue
+              path = root / name
+              if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+                  raise SystemExit('Unsafe release source: '+name)
+              selected.append(name)
+          if not (root/'PUBLIC_SOURCE.json').is_file():
+              raise SystemExit('Release only the prepared public source snapshot, never the private working repository')
+          selected.append('dist/server/index.js')
+          archive = root / ('guild-desk-'+version+'.zip')
+          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as output:
+              for name in sorted(set(selected)):
+                  data = (root/name).read_bytes()
+                  if re.search(rb'BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}', data) or (b'git.'+b'chatgpt-team.site') in data:
+                      raise SystemExit('Potential private content in '+name)
+                  output.writestr('guild-desk-'+version+'/'+name, data)
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          (root/'SHA256SUMS.txt').write_text(digest+'  '+archive.name+'\n')
+          PY
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" "guild-desk-$RELEASE_TAG.zip" SHA256SUMS.txt --verify-tag --title "Guild Desk $RELEASE_TAG" --notes-file PUBLIC_RELEASE.md

@@ -1,0 +1,7 @@
+CREATE TABLE capture_sessions (id TEXT PRIMARY KEY, boss_name TEXT NOT NULL, raid_id TEXT REFERENCES raids(id), created_by TEXT NOT NULL REFERENCES users(id), channel_name TEXT NOT NULL, senders_json TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','preparing','finished','revoked')), created_at TEXT NOT NULL, expires_at_ms INTEGER NOT NULL, watcher_id TEXT, ingest_op TEXT, prepared_by TEXT REFERENCES users(id), draft_id TEXT UNIQUE REFERENCES loot_drafts(id));
+--> statement-breakpoint
+CREATE TABLE capture_events (capture_id TEXT NOT NULL REFERENCES capture_sessions(id), event_id TEXT NOT NULL, signature TEXT NOT NULL, file_name TEXT NOT NULL, file_offset INTEGER NOT NULL CHECK(file_offset>=0), raw_line TEXT NOT NULL, sender TEXT NOT NULL, source_time TEXT NOT NULL, payload_hash TEXT NOT NULL, items_json TEXT NOT NULL, warnings_json TEXT NOT NULL, item_count INTEGER NOT NULL, warning_count INTEGER NOT NULL, ignored INTEGER NOT NULL DEFAULT 0 CHECK(ignored IN (0,1)), received_at TEXT NOT NULL, PRIMARY KEY(capture_id,event_id));
+--> statement-breakpoint
+CREATE INDEX capture_events_order ON capture_events(capture_id,received_at,file_offset);
+--> statement-breakpoint
+CREATE INDEX capture_sessions_created ON capture_sessions(created_at);

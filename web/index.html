@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Guild Desk private DKP test site for character claims and raid attendance.">
+  <title>Guild Desk</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="site-strip">Private test site <span>Guild DKP, attendance, and sealed auctions</span></div>
+  <header class="topbar">
+    <a class="brand" href="#dashboard" aria-label="Guild Desk home"><span class="brand-mark" aria-hidden="true">GD</span><span>Guild Desk<small>Raid records, made clear.</small></span></a>
+    <div id="account-bar" class="account-bar" hidden></div>
+  </header>
+  <div id="announcement" class="announcement" role="status" aria-live="polite" hidden></div>
+  <div id="auth" class="auth-wrap" hidden></div>
+  <div id="workspace" class="workspace" hidden>
+    <aside class="sidebar"><nav id="navigation" aria-label="Main navigation"></nav><p class="sidebar-note">Main-character DKP<br>No bid reservations</p></aside>
+    <main id="main" class="main" tabindex="-1">
+      <div id="page-heading"></div>
+      <div id="page-content"></div>
+    </main>
+  </div>
+  <div id="startup" class="startup" role="status">Opening Guild Desk...</div>
+  <div id="item-preview" class="item-preview" role="region" aria-label="Item preview" hidden></div>
+  <dialog id="item-dialog" class="item-dialog" aria-labelledby="item-dialog-title">
+    <div class="item-dialog-bar"><h2 id="item-dialog-title">Item details</h2><button type="button" data-action="close-item-dialog">Close item details</button></div>
+    <div id="item-dialog-content"></div>
+  </dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

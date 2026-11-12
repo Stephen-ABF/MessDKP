@@ -1,0 +1,10 @@
+{
+  "version": "0.3.0",
+  "syntheticSamples": true,
+  "attendanceRows": [
+    26,
+    29
+  ],
+  "distinctCharacters": 29,
+  "includesGitHistory": false
+}

@@ -1,0 +1,14 @@
+dist/
+outputs/
+.sites-runtime/
+.wrangler/
+.env
+.env.*
+.dev.vars*
+*.sqlite
+*.sqlite-*
+node_modules/
+data/
+companion/state/
+*.pcap
+*.pcapng

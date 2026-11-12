@@ -13,7 +13,7 @@ await mkdir(outputRoot,{recursive:true});
 if(await realpath(outputRoot)!==outputRoot)throw Error('The output directory must not resolve through a symlink or junction.');
 try{const info=await lstat(destination);if(!info.isDirectory()||info.isSymbolicLink()||(await readdir(destination)).length)throw Error('Refusing to overwrite an existing nonempty or linked public destination. Use a fresh versioned destination.');}catch(error){if(error.code!=='ENOENT')throw error;}
 
-const topFiles=new Set(['build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','package.json','.gitignore','API.md','AUCTIONS.md','ADMIN.md','ITEMS.md','REPORTS.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','AUCTION_RULES.md','PUBLIC_RELEASE.md']);
+const topFiles=new Set(['build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','package.json','.gitignore','API.md','AUCTIONS.md','ADMIN.md','ITEMS.md','REPORTS.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','AUCTION_RULES.md','PUBLIC_RELEASE.md','OWNERSHIP.md','EQUIPMENT.md']);
 const dirs=new Set(['worker','web','tests','local','companion','drizzle','scripts']);
 const permittedExtensions=new Set(['.mjs','.js','.html','.css','.sql','.json','.md','.cmd']);
 const records=[];
@@ -37,7 +37,7 @@ for(const name of ['ci.yml','release.yml']){
  const info=await lstat(path.join(root,file));if(!info.isFile()||info.isSymbolicLink())throw Error('Missing safe workflow: '+file);records.push(file);
 }
 function publicText(text,file){
- let result=text.replaceAll('DemoGuild_test','DemoGuild_test').replaceAll('DemoGuild_','DemoGuild_').replaceAll('_test','_test').replaceAll("'demoguild'","'demoguild'").replaceAll("'test'","'test'").replaceAll('Mainhero','Mainhero').replaceAll('Secondhero','Secondhero').replaceAll('mainhero','mainhero').replaceAll('secondhero','secondhero');
+ let result=text.replace(/\r\n/g,'\n').replaceAll('DemoGuild_test','DemoGuild_test').replaceAll('DemoGuild_','DemoGuild_').replaceAll('_test','_test').replaceAll("'demoguild'","'demoguild'").replaceAll("'test'","'test'").replaceAll('Mainhero','Mainhero').replaceAll('Secondhero','Secondhero').replaceAll('mainhero','mainhero').replaceAll('secondhero','secondhero');
  if(file.endsWith('.md')||file.startsWith('tests/'))result=result.replace(/actual two supplied dumps/g,'synthetic two demo dumps').replace(/Three raw messages verified in the user's supplied EverQuest log\./g,'Three item-only chat protocol examples based on the verified format; no player roster or unrelated chat is included.').replace(/verified raw log/g,'item-only protocol example').replace(/user payloads/g,'item-only payloads');
  if(file==='CAPTURES.md')result=result.replace('Verified user example:','Synthetic example:').replace(/## Hosting limitation[\s\S]*$/,'## Hosting compatibility\n\nThe persistent local server accepts the capture-scoped native API directly. Hosted authentication gates may redirect native requests before the application receives them. Native requests do not have browser cookies and never forward capture tokens across redirects. Verify an authorized reachable hosted API before claiming hosted companion compatibility. No authentication-gate bypass is provided.\n');
  return result;
@@ -45,10 +45,10 @@ function publicText(text,file){
 const files=new Map();
 for(const file of records)files.set(file,publicText(await readFile(path.join(root,file),'utf8'),file));
 const packageInfo=JSON.parse(files.get('package.json'));
-if(packageInfo.version!=='0.3.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
+if(packageInfo.version!=='0.4.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
 packageInfo.scripts={...packageInfo.scripts,build:'node build.mjs --local',test:'node --test'};
 files.set('package.json',JSON.stringify(packageInfo,null,2)+'\n');
-files.set('README.md',`# Guild Desk 0.3.0
+files.set('README.md',`# Guild Desk 0.4.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -70,6 +70,10 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
+## New in 0.4
+
+Source captures open individual tick attendance. Characters opens the registry first with a separate creation tab. Main profiles include linked loot awards and a member-maintained equipment overview, with saved item references and shared EQ-style hover details. Claim history identifies the assigning officer and supports audited detach corrections. Equipment selections do not change awards or DKP; only known cached item details are displayed.
+
 ## DKP and loot behavior
 
 Attendance uses each committed data dump as a tick. The mains report groups by class, shows current DKP and negative balances, and reports 30/60/90-day/all-time tick attendance. DKP is not reserved for bids. Officers confirm awards before charges; negative balances remain visible for officer handling. Auctions use a shared 24-hour window and sealed bids. Each winner pays the next eligible bid plus one, capped at their bid; without a lower bid the published minimum applies.
@@ -80,9 +84,9 @@ EQResource links and explicitly sourced partial item references are retained. So
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.3.0 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.4.0 and release instructions.
 
-API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md and EQRESOURCE.md. Features and limitations should be reviewed before production use.
+API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md. Features and limitations should be reviewed before production use.
 `);
 const classes=['Warrior','Cleric','Paladin','Ranger','Shadow Knight','Druid','Monk','Bard','Rogue','Shaman','Necromancer','Wizard','Magician','Enchanter','Beastlord','Berserker'];
 const letters=index=>index<26?String.fromCharCode(65+index):'A'+String.fromCharCode(65+index-26);
@@ -90,7 +94,7 @@ const extras=Array.from({length:27},(_,index)=>'Demochar'+letters(index));
 function artificialRoster(names){return names.map(name=>{const index=name==='Mainhero'?0:name==='Secondhero'?1:extras.indexOf(name)+2;return[name,'80',classes[index%classes.length],'Demo Member','','01/01/26','Demo Zone','Artificial example; not an ownership claim','','on','off',String(1000+index),'01/01/26','Artificial example; not an ownership claim',''].join('\t');}).join('\n')+'\n';}
 files.set('tests/fixtures/DemoGuild_test-20261111-180515(1).txt',artificialRoster(['Mainhero',...extras.slice(0,25)]));
 files.set('tests/fixtures/DemoGuild_test-20261111-182058(1).txt',artificialRoster(['Mainhero','Secondhero',...extras]));
-files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.3.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
+files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.4.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
 
 let inputIsPublic=false;try{inputIsPublic=JSON.parse(await readFile(path.join(root,'PUBLIC_SOURCE.json'),'utf8')).syntheticSamples===true;}catch{}
 for(const [file,text]of files){

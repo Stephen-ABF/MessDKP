@@ -30,3 +30,6 @@ GET /api/loot/items/:itemId/history returns published appearances, total quantit
 ## Completing the catalog
 
 A complete item-data source still needs validation. Local names/IDs do not supply stats. An external collector describes server-sent records saved as items.jsonl (https://norrathcodex.com/collector). Current-client compatibility, field mappings, provenance and item variants must be checked before adopting that output. No collector has been run and no importer for its format is included in0.2.0.
+## EQ-style profile and hover views
+
+The hover and full details share a compact item pane: flags, slots, classes, races, normalized recorded stats, all known effects/focus, augment slots and expandable remaining source fields. Only validated source images appear. The partial Blood of Dhampyre reference includes Prismatic Ward VIII, Improved Dodge V and Corrupted Sylvan's Rot II from its EQResource item record; legacy copies of that known starter reference receive the same verified fields without a live request. Unknown items and failed refreshes do not inherit unrelated effects or claim complete metadata. Profile selections reuse this same pane.

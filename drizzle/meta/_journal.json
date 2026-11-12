@@ -22,6 +22,20 @@
       "when": 1794461746699,
       "tag": "0002_live_loot_capture",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794490054063,
+      "tag": "0003_assignment_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794490745494,
+      "tag": "0004_character_equipment",
+      "breakpoints": true
     }
   ]
 }

@@ -36,3 +36,19 @@ test('additive catalog and boss-loot migration preserves an existing account, it
   assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE name='ledger_exact_total'").get());
  }finally{db.close();}
 });
+
+test('v0.3 database upgrades to assignment history and equipment without changing owned characters or DKP',async()=>{
+ const db=new DatabaseSync(':memory:');
+ const apply=async name=>{for(const statement of (await readFile(new URL('../drizzle/'+name,import.meta.url),'utf8')).split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))db.prepare(statement).run();};
+ try{
+  for(const name of ['0000_initial.sql','0001_item_catalog_boss_loot.sql','0002_live_loot_capture.sql'])await apply(name);
+  db.exec("INSERT INTO users VALUES('owner','owner@fixture.test','Owner','x','x','admin','then'); INSERT INTO characters VALUES('main','mainhero','Mainhero',85,'Monk','Raider','main','owner','then'); INSERT INTO claims(id,character_id,user_id,status,kind,created_at,approved_at) VALUES('claim','main','owner','approved','main','before','then'); INSERT INTO ledger VALUES('previous','main',NULL,-75,'Existing award','owner','then','previous');");
+  db.prepare('INSERT INTO audit VALUES(?,?,?,?,?)').run('approved','owner','claim_approved',JSON.stringify({claimId:'claim'}),'then');
+  for(const name of ['0003_assignment_history.sql','0004_character_equipment.sql'])await apply(name);
+  assert.equal(db.prepare('SELECT SUM(amount) balance FROM ledger').get().balance,-75);
+  assert.equal(db.prepare('SELECT owner_id FROM characters').get().owner_id,'owner');
+  const assignment=db.prepare('SELECT * FROM assignment_events').get();assert.equal(assignment.assigned_by,'owner');assert.equal(assignment.character_id,'main');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM character_equipment').get().n,0);
+  assert.throws(()=>db.prepare('DELETE FROM assignment_events').run(),/IMMUTABLE/);
+ }finally{db.close();}
+});

@@ -40,4 +40,22 @@ if(!journalData.entries.some(entry=>entry.tag==='0002_live_loot_capture')){
  journalData.entries.push({idx:2,version:'6',when:Date.now(),tag:'0002_live_loot_capture',breakpoints:true});
  await writeFile(journal,JSON.stringify(journalData,null,2)+'\n','utf8');
 }
-console.log('Prepared ordered schema-only migrations through live loot capture. No accounts or guild data are seeded.');
+const ownershipSchema=(await readFile(path.join(root,'worker/ownership.sql'),'utf8')).split(/(?=^(?:CREATE|ALTER|UPDATE|INSERT)\s)/m).map(s=>s.trim()).filter(Boolean).join('\n--> statement-breakpoint\n')+'\n';
+const ownershipTarget=path.join(directory,'0003_assignment_history.sql');
+let ownershipExisting;try{ownershipExisting=await readFile(ownershipTarget,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
+if(ownershipExisting&&ownershipExisting!==ownershipSchema)throw new Error('Migration0003 differs. Append a migration instead of rewriting history.');
+if(!ownershipExisting)await writeFile(ownershipTarget,ownershipSchema,'utf8');
+if(!journalData.entries.some(entry=>entry.tag==='0003_assignment_history')){
+ journalData.entries.push({idx:3,version:'6',when:Date.now(),tag:'0003_assignment_history',breakpoints:true});
+ await writeFile(journal,JSON.stringify(journalData,null,2)+'\n','utf8');
+}
+const equipmentSchema=(await readFile(path.join(root,'worker/equipment.sql'),'utf8')).split(/(?=^CREATE\s)/m).map(s=>s.trim()).filter(Boolean).join('\n--> statement-breakpoint\n')+'\n';
+const equipmentTarget=path.join(directory,'0004_character_equipment.sql');
+let equipmentExisting;try{equipmentExisting=await readFile(equipmentTarget,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
+if(equipmentExisting&&equipmentExisting!==equipmentSchema)throw new Error('Migration0004 differs. Append a migration instead of rewriting history.');
+if(!equipmentExisting)await writeFile(equipmentTarget,equipmentSchema,'utf8');
+if(!journalData.entries.some(entry=>entry.tag==='0004_character_equipment')){
+ journalData.entries.push({idx:4,version:'6',when:Date.now(),tag:'0004_character_equipment',breakpoints:true});
+ await writeFile(journal,JSON.stringify(journalData,null,2)+'\n','utf8');
+}
+console.log('Prepared ordered migrations through character equipment. Existing guild records are retained.');

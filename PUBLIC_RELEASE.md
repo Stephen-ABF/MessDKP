@@ -1,6 +1,6 @@
-# Guild Desk 0.3.0
+# Guild Desk 0.4.0
 
-Version 0.3.0 adds dedicated EverQuest loot-channel capture and a local Node.js companion to the accounts, approved main/alt ownership, attendance ticks, DKP ledger, sealed auctions, item references and boss-batch workflow. Companion capture prepares draft items for officer review; it does not publish auctions or deduct points itself. DKP is not reserved by bids.
+Version 0.4.0 adds individual attendance-capture views, registry-first character tabs, main loot awards and a saved equipment overview, EQ-style item details with recorded focus effects, and officer-assigned claim history with audited unclaiming. The companion and persistent SQLite remain included. Profile gear selections do not confirm awards or change DKP; bidding reserves no points.
 
 ## Public sample data
 
@@ -14,10 +14,10 @@ Use Node.js 24 or later. Run `node build.mjs --local` and then `node --test`. CI
 
 For live loot, create a capture in Guild Desk's Live loot capture screen, then run `companion/Start-Companion.cmd` or `node companion/start.mjs`, paste its pairing JSON and select the EQ log. Finish the capture in Guild Desk and prepare the boss draft before matching items and publishing reviewed auctions. See the companion README and CAPTURES.md for secure pairing and recovery.
 
-To publish a reviewed release, update the package version and release notes, commit the clean public source, then create and push the matching version tag, such as `v0.3.0`. The tag workflow verifies that the tag matches the package version, builds without private host configuration, and runs the suite from a clean checkout. It packages only allowlisted tracked source and the generated Worker, then attaches a ZIP and SHA-256 checksum to a GitHub release using the workflow's short-lived token. Only the release job receives `contents: write`; CI is read-only. Tags do not deploy the application or publish a database.
+To publish a reviewed release, update the package version and release notes, commit the clean public source, then create and push the matching version tag, such as `v0.4.0`. The tag workflow verifies that the tag matches the package version, builds without private host configuration, and runs the suite from a clean checkout. It packages only allowlisted tracked source and the generated Worker, then attaches a ZIP and SHA-256 checksum to a GitHub release using the workflow's short-lived token. Only the release job receives `contents: write`; CI is read-only. Tags do not deploy the application or publish a database.
 
 The workflows are prepared configuration. They do not establish that a public repository, push, remote CI run, GitHub release, production deployment or outside security audit has already succeeded. EQResource access may fail, full item metadata remains unverified, and production hosting needs separate persistent database configuration and migrations.
 
-Maintainers can prepare the initial clean snapshot with `node scripts/prepare-public-source.mjs`. The default destination is the workspace's `outputs/public-guild-desk` sibling directory. The exporter refuses an existing nonempty destination; use `--destination` with a fresh `outputs/public-guild-desk-v0.3.0-N` directory for a new candidate. It never deletes or rewrites existing output. Do not include local build/data outputs in the initial commit.
+Maintainers can prepare the initial clean snapshot with `node scripts/prepare-public-source.mjs`. The default destination is the workspace's `outputs/public-guild-desk` sibling directory. The exporter refuses an existing nonempty destination; use `--destination` with a fresh `outputs/public-guild-desk-v0.4.0-N` directory for a new candidate. It never deletes or rewrites existing output. Do not include local build/data outputs in the initial commit.
 
 Workflow references: [GitHub's Node.js CI guide](https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs), [workflow token permissions](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token), and [GitHub CLI release creation](https://cli.github.com/manual/gh_release_create).

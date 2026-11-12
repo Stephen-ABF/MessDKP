@@ -41,3 +41,9 @@ Every committed dump is one tick/check-in. Attendance is the count of distinct c
 Response is `{asOf,attendanceUnit,denominator,main,windows,raids}`. `main` is the Main-shaped row above. `windows` uses the summary definitions. `raids` lists every guild raid with at least one committed tick through the selected date, newest first: `{id,name,date,rate,attendedTicks,totalTicks,percentage}`. A main attending3 of6 ticks reports50;6 of6 reports100. An approved main absent from a raid reports0 of its actual ticks. A character outside the approved-main summary returns404.
 
 Dates must be actual calendar dates with four-digit years from0001 through9999; malformed/repeated `asOf` is rejected. Methods other than GET return405. No schema migration is required.
+
+## Source capture details and won loot
+
+GET /api/raids/:raidId/ticks/:tickId returns {raid,tick,attendance}, constrained to that exact raid and tick. The source time and filename identify the capture; raw uploaded text remains private. Authenticated members may read this view.
+
+GET /api/reports/mains/:characterId/loot returns {characterId,loot}, with each closed award containing auctionId,itemId,itemName,sourceUrl,winningBid,price,status,confirmedAt,closedAt. Open or future-deadline results are excluded. Pending awards label price as proposed; confirmed awards show the actual charge. Item links open cache details and existing guild appearances/bids history. These reads never charge DKP.

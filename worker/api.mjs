@@ -43,7 +43,8 @@ async function rateLimit(db, request, email, action) {
 }
 function emailInput(value) { const email = text(value, 'Email', 3, 254).toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400, 'validation', 'Enter a valid email address.'); return email; }
 const characterSelect = `SELECT c.id,c.name,c.level,c.class_name AS className,c.guild_rank AS rank,c.kind,c.owner_id AS ownerId,u.name AS ownerName,u.email AS ownerEmail,COALESCE((SELECT SUM(amount) FROM ledger l WHERE l.character_id=c.id),0) AS balance,(SELECT COUNT(*) FROM attendance a WHERE a.character_id=c.id AND a.status='pending') AS pendingTicks FROM characters c LEFT JOIN users u ON u.id=c.owner_id`;
-const claimSelect = `SELECT q.id,q.character_id AS characterId,c.name AS characterName,q.user_id AS userId,u.name AS userName,u.email AS userEmail,q.status,q.kind,q.created_at AS createdAt,q.approved_at AS approvedAt,q.rejected_at AS rejectedAt,q.rejected_by AS rejectedBy,q.rejection_reason AS rejectionReason FROM claims q JOIN characters c ON c.id=q.character_id JOIN users u ON u.id=q.user_id`;
+const claimSelect = `SELECT q.id,q.character_id AS characterId,c.name AS characterName,q.user_id AS userId,u.name AS userName,u.email AS userEmail,q.status,q.kind,q.created_at AS createdAt,q.approved_at AS approvedAt,q.rejected_at AS rejectedAt,q.rejected_by AS rejectedBy,q.rejection_reason AS rejectionReason,c.owner_id AS ownerId,(q.status='approved' AND c.owner_id=q.user_id AND c.kind=q.kind) AS currentlyAssigned,(SELECT a.actor_id FROM audit a WHERE a.action='claim_approved' AND json_valid(a.details) AND json_extract(a.details,'$.claimId')=q.id AND a.created_at=q.approved_at ORDER BY a.id LIMIT 1) AS approvedBy,(SELECT actor.name FROM audit a JOIN users actor ON actor.id=a.actor_id WHERE a.action='claim_approved' AND json_valid(a.details) AND json_extract(a.details,'$.claimId')=q.id AND a.created_at=q.approved_at ORDER BY a.id LIMIT 1) AS assignedBy FROM claims q JOIN characters c ON c.id=q.character_id JOIN users u ON u.id=q.user_id`;
+const assignmentSelect = `SELECT e.id,e.claim_id AS claimId,e.character_id AS characterId,c.name AS characterName,e.user_id AS userId,u.name AS userName,u.email AS userEmail,e.kind,e.action AS outcome,e.resolved_at AS resolvedAt,e.reason,e.actor_id AS actorId,actor.name AS actorName,assigner.name AS assignedBy,c.owner_id AS ownerId,(e.action='approved' AND c.owner_id=e.user_id AND c.kind=e.kind AND c.approved_at=e.resolved_at AND NOT EXISTS(SELECT 1 FROM assignment_events d WHERE d.related_assignment_id=e.id AND d.action='detached')) AS currentlyAssigned FROM assignment_events e JOIN characters c ON c.id=e.character_id JOIN users u ON u.id=e.user_id LEFT JOIN users actor ON actor.id=e.actor_id LEFT JOIN users assigner ON assigner.id=e.assigned_by`;
 const raidSelect = `SELECT r.id,r.name,r.date,r.rate,r.created_at AS createdAt,(SELECT COUNT(*) FROM ticks t WHERE t.raid_id=r.id) AS tickCount FROM raids r`;
 const auditStmt = (db, user, action, details, at = now(), auditId = id()) => sql(db, 'INSERT INTO audit(id,actor_id,action,details,created_at) VALUES(?,?,?,?,?)', auditId, user.id, action, JSON.stringify(details), at);
 async function creationDefaults(db, enabled) {
@@ -119,7 +120,7 @@ async function importDumps(request, db, user, raidId) {
  const credits=await sql(db,'SELECT COALESCE(SUM(amount),0) AS n FROM ledger WHERE operation_id=?',operation).first();
  return json({preview:false,files:previews,importedTicks:count.n,duplicateTicks:files.length-count.n,creditedDkp:credits.n});
 }
-async function approveClaim(db,user,claimId,input) {
+async function approveClaim(db,user,claimId,input,ownership=false) {
  officer(user); if(!['main','alt'].includes(input.kind))fail(400,'validation','Choose main or alt.');
  const claim=await sql(db,'SELECT * FROM claims WHERE id=?',claimId).first();if(!claim)fail(404,'not_found','Claim not found.');
  if(claim.status==='approved'){if(claim.kind!==input.kind)fail(409,'claim_conflict','This claim was already approved with another character type.');return json({claim:await sql(db,claimSelect+' WHERE q.id=?',claimId).first(),creditedDkp:0});}
@@ -127,16 +128,40 @@ async function approveClaim(db,user,claimId,input) {
  if(input.kind==='main'&&await sql(db,"SELECT id FROM characters WHERE owner_id=? AND kind='main' AND id<>?",claim.user_id,claim.character_id).first())fail(409,'main_exists','This account already has an approved main. Approve this character as an alt instead. Main changes are not available in this build.');
  const operation=id(),at=now(),rejectionReason='Another claim for this character was approved.';
  try{await db.batch([
-  sql(db,`UPDATE claims SET status='approved',kind=?,approved_at=?,approval_op=? WHERE id=? AND status='pending' AND EXISTS(SELECT 1 FROM characters c WHERE c.id=claims.character_id AND c.owner_id IS NULL)`,input.kind,at,operation,claimId),
+  sql(db,`UPDATE claims SET status='approved',kind=?,approved_at=?,approval_op=?${ownership?',approved_by=?':''} WHERE id=? AND status='pending' AND EXISTS(SELECT 1 FROM characters c WHERE c.id=claims.character_id AND c.owner_id IS NULL)`,input.kind,at,operation,...(ownership?[user.id]:[]),claimId),
   sql(db,`UPDATE characters SET owner_id=?,kind=?,approved_at=? WHERE id=? AND owner_id IS NULL AND EXISTS(SELECT 1 FROM claims WHERE id=? AND approval_op=?)`,claim.user_id,input.kind,at,claim.character_id,claimId,operation),
   sql(db,`INSERT INTO ledger(id,character_id,attendance_id,amount,reason,actor_id,created_at,operation_id) SELECT lower(hex(randomblob(16))),a.character_id,a.id,a.dkp,'Pending attendance approved',?,?,? FROM attendance a JOIN characters c ON c.id=a.character_id WHERE a.character_id=? AND a.status='pending' AND c.kind='main' AND c.owner_id=? AND EXISTS(SELECT 1 FROM claims WHERE id=? AND approval_op=?) ON CONFLICT(attendance_id) DO NOTHING`,user.id,at,operation,claim.character_id,claim.user_id,claimId,operation),
   sql(db,`UPDATE attendance SET status=CASE WHEN ?='alt' THEN 'ineligible' ELSE 'credited' END WHERE character_id=? AND status='pending' AND EXISTS(SELECT 1 FROM claims WHERE id=? AND approval_op=?)`,input.kind,claim.character_id,claimId,operation),
+  ...(ownership?[sql(db,`INSERT INTO assignment_events(id,claim_id,character_id,user_id,kind,action,resolved_at,reason,actor_id) SELECT 'rejected-'||?||'-'||q.id,q.id,q.character_id,q.user_id,q.kind,'rejected',?,?,? FROM claims q WHERE q.character_id=? AND q.id<>? AND q.status='pending' AND EXISTS(SELECT 1 FROM claims winner WHERE winner.id=? AND winner.approval_op=?)`,operation,at,rejectionReason,user.id,claim.character_id,claimId,claimId,operation)]:[]),
   sql(db,`INSERT INTO audit(id,actor_id,action,details,created_at) SELECT lower(hex(randomblob(16))),?,'claim_rejected',json_object('claimId',q.id,'characterId',q.character_id,'reason',?,'winningClaimId',?),? FROM claims q WHERE q.character_id=? AND q.id<>? AND q.status='pending' AND EXISTS(SELECT 1 FROM claims winner WHERE winner.id=? AND winner.approval_op=?)`,user.id,rejectionReason,claimId,at,claim.character_id,claimId,claimId,operation),
   sql(db,`UPDATE claims SET status='rejected',rejected_at=?,rejected_by=?,rejection_reason=? WHERE character_id=? AND id<>? AND status='pending' AND EXISTS(SELECT 1 FROM claims winner WHERE winner.id=? AND winner.approval_op=?)`,at,user.id,rejectionReason,claim.character_id,claimId,claimId,operation),
-  sql(db,`INSERT INTO audit(id,actor_id,action,details,created_at) SELECT ?,?,'claim_approved',?,? WHERE EXISTS(SELECT 1 FROM claims WHERE id=? AND approval_op=?)`,id(),user.id,JSON.stringify({claimId,characterId:claim.character_id,kind:input.kind}),at,claimId,operation)
+  sql(db,`INSERT INTO audit(id,actor_id,action,details,created_at) SELECT ?,?,'claim_approved',?,? WHERE EXISTS(SELECT 1 FROM claims WHERE id=? AND approval_op=?)`,id(),user.id,JSON.stringify({claimId,characterId:claim.character_id,kind:input.kind}),at,claimId,operation),
+  ...(ownership?[sql(db,`INSERT INTO assignment_events(id,claim_id,character_id,user_id,kind,action,resolved_at,actor_id,assigned_by) SELECT ?,id,character_id,user_id,kind,'approved',?,?,? FROM claims WHERE id=? AND approval_op=?`,operation,at,user.id,user.id,claimId,operation)]:[])
  ]);}catch(error){if(/characters\.owner_id|characters_one_main_per_owner/i.test(String(error)))fail(409,'main_exists','This account already has an approved main. No claim, attendance credit, or competing request was changed. Approve this character as an alt instead.');throw error;}
  const approved=await sql(db,claimSelect+' WHERE q.id=?',claimId).first();if(approved.status!=='approved'||approved.kind!==input.kind)fail(409,'claim_conflict','Another approval changed this character. Refresh and review ownership.');
  const credits=await sql(db,'SELECT COALESCE(SUM(amount),0) AS n FROM ledger WHERE operation_id=?',operation).first();return json({claim:approved,creditedDkp:credits.n});
+}
+async function detachCharacter(db,user,characterId,input,auctions=false) {
+ officer(user);const reason=text(input.reason,'Detach reason',3,1000),expectedOwnerId=text(input.expectedOwnerId,'Expected owner',1,100),assignmentId=text(input.expectedAssignmentId,'Expected assignment',1,150);
+ const old=await sql(db,"SELECT * FROM assignment_events WHERE id=? AND character_id=? AND user_id=? AND action='approved'",assignmentId,characterId,expectedOwnerId).first();if(!old)fail(409,'assignment_conflict','This assignment changed. Refresh the claim history before detaching it.');
+ const previous=await sql(db,"SELECT id FROM assignment_events WHERE related_assignment_id=? AND action='detached'",assignmentId).first();
+ if(previous)return json({character:await sql(db,characterSelect+' WHERE c.id=?',characterId).first(),alreadyDetached:true});
+ const character=await sql(db,'SELECT * FROM characters WHERE id=?',characterId).first();if(!character)fail(404,'not_found','Character not found.');
+ if(character.owner_id!==expectedOwnerId||character.kind!==old.kind||character.approved_at!==old.resolved_at)fail(409,'assignment_conflict','This character has a different current assignment. Refresh before detaching.');
+ const lifecycle=auctions?` AND NOT EXISTS(SELECT 1 FROM auction_bids b JOIN auctions a ON a.id=b.auction_id WHERE b.character_id=c.id AND b.active=1 AND a.status='open') AND NOT EXISTS(SELECT 1 FROM auction_awards w WHERE w.character_id=c.id AND w.status='pending')`:'';
+ if(auctions){const blocked=await sql(db,"SELECT (EXISTS(SELECT 1 FROM auction_bids b JOIN auctions a ON a.id=b.auction_id WHERE b.character_id=? AND b.active=1 AND a.status='open') OR EXISTS(SELECT 1 FROM auction_awards WHERE character_id=? AND status='pending')) AS blocked",characterId,characterId).first();if(blocked.blocked)fail(409,'assignment_in_use','Withdraw active bids and resolve pending item awards before detaching this character.');}
+ const operation=id(),at=now();
+ await db.batch([
+  sql(db,`INSERT INTO assignment_events(id,claim_id,character_id,user_id,kind,action,resolved_at,reason,actor_id,assigned_by,related_assignment_id) SELECT ?,e.claim_id,e.character_id,e.user_id,e.kind,'detached',?,?,?,e.assigned_by,e.id FROM assignment_events e JOIN characters c ON c.id=e.character_id WHERE e.id=? AND c.owner_id=? AND c.kind=e.kind AND c.approved_at=e.resolved_at AND NOT EXISTS(SELECT 1 FROM assignment_events d WHERE d.related_assignment_id=e.id AND d.action='detached')${lifecycle}`,operation,at,reason,user.id,assignmentId,expectedOwnerId),
+  sql(db,"UPDATE characters SET owner_id=NULL,kind='unclassified',approved_at=NULL WHERE id=? AND owner_id=? AND EXISTS(SELECT 1 FROM assignment_events WHERE id=?)",characterId,expectedOwnerId,operation),
+  sql(db,"UPDATE claims SET status='rejected',rejected_at=?,rejected_by=?,rejection_reason=? WHERE character_id=? AND status='approved' AND EXISTS(SELECT 1 FROM assignment_events WHERE id=?)",at,user.id,'Detached: '+reason,characterId,operation),
+  sql(db,"INSERT INTO audit(id,actor_id,action,details,created_at) SELECT ?,?,'character_detached',?,? WHERE EXISTS(SELECT 1 FROM assignment_events WHERE id=?)",id(),user.id,JSON.stringify({characterId,previousOwnerId:expectedOwnerId,assignmentId,reason}),at,operation)
+ ]);
+ if(!await sql(db,'SELECT id FROM assignment_events WHERE id=?',operation).first()){
+  if(await sql(db,"SELECT id FROM assignment_events WHERE related_assignment_id=? AND action='detached'",assignmentId).first())return json({character:await sql(db,characterSelect+' WHERE c.id=?',characterId).first(),alreadyDetached:true});
+  fail(409,'assignment_conflict','The character or its auction activity changed. Refresh before detaching.');
+ }
+ return json({character:await sql(db,characterSelect+' WHERE c.id=?',characterId).first(),alreadyDetached:false});
 }
 export async function handleApi(request,env) {
  try {
@@ -189,7 +214,15 @@ export async function handleApi(request,env) {
   }
   if(path==='/api/claims'&&request.method==='POST') {
    const input=await body(request),characterId=text(input.characterId,'Character',1,100);const character=await sql(db,'SELECT * FROM characters WHERE id=?',characterId).first();if(!character)fail(404,'not_found','Character not found.');if(character.owner_id)fail(409,'already_claimed','This character already has an approved owner.');
-   const existing=await sql(db,claimSelect+' WHERE q.character_id=? AND q.user_id=?',characterId,user.id).first();if(existing)return json({claim:existing});
+   const existing=await sql(db,claimSelect+' WHERE q.character_id=? AND q.user_id=?',characterId,user.id).first();
+   if(existing){
+    if(existing.status!=='rejected'||!env.FEATURE_OWNERSHIP)return json({claim:existing});
+    const operation=id(),at=now();await db.batch([
+     sql(db,"UPDATE claims SET status='pending',kind=NULL,created_at=?,approved_at=NULL,approved_by=NULL,approval_op=?,rejected_at=NULL,rejected_by=NULL,rejection_reason=NULL WHERE id=? AND status='rejected' AND EXISTS(SELECT 1 FROM characters c WHERE c.id=claims.character_id AND c.owner_id IS NULL)",at,operation,existing.id),
+     sql(db,"INSERT INTO audit(id,actor_id,action,details,created_at) SELECT ?,?,'claim_requested',?,? WHERE EXISTS(SELECT 1 FROM claims WHERE id=? AND approval_op=? AND status='pending')",id(),user.id,JSON.stringify({characterId,reopenedClaimId:existing.id}),at,existing.id,operation)
+    ]);
+    const result=await sql(db,claimSelect+' WHERE q.id=?',existing.id).first();if(result.status==='rejected')fail(409,'already_claimed','This character was assigned while your request was being submitted.');return json({claim:result},201);
+   }
    const claimId=id(),at=now();await db.batch([
     sql(db,'INSERT INTO claims(id,character_id,user_id,created_at) SELECT ?,c.id,?,? FROM characters c WHERE c.id=? AND c.owner_id IS NULL ON CONFLICT(character_id,user_id) DO NOTHING',claimId,user.id,at,characterId),
     sql(db,`INSERT INTO audit(id,actor_id,action,details,created_at) SELECT ?,?,'claim_requested',?,? WHERE EXISTS(SELECT 1 FROM claims WHERE id=?)`,id(),user.id,JSON.stringify({characterId}),at,claimId)
@@ -198,9 +231,12 @@ export async function handleApi(request,env) {
    if(!result)fail(409,'already_claimed','This character was assigned while your request was being submitted.');
    return json({claim:result},201);
   }
-  if(path==='/api/claims'&&request.method==='GET'){officer(user);return json({claims:await all(sql(db,claimSelect+' ORDER BY q.created_at DESC'))});}
+  if(path==='/api/claims'&&request.method==='GET'){officer(user);const claims=(await all(sql(db,claimSelect+' ORDER BY q.created_at DESC'))).map(q=>({...q,currentlyAssigned:!!q.currentlyAssigned}));const assignments=env.FEATURE_OWNERSHIP?(await all(sql(db,assignmentSelect+' ORDER BY e.resolved_at DESC,e.id DESC'))).map(e=>({...e,currentlyAssigned:!!e.currentlyAssigned})):[];return json({claims,assignments});}
   let match;
-  if((match=/^\/api\/claims\/([^/]+)\/approve$/.exec(path))&&request.method==='POST')return await approveClaim(db,user,match[1],await body(request));
+  if((match=/^\/api\/claims\/([^/]+)\/approve$/.exec(path))&&request.method==='POST')return await approveClaim(db,user,match[1],await body(request),!!env.FEATURE_OWNERSHIP);
+  if((match=/^\/api\/characters\/([^/]+)\/detach$/.exec(path))&&request.method==='POST'){
+   if(!env.FEATURE_OWNERSHIP)fail(503,'ownership_unavailable','Ownership correction is unavailable in this build.');return await detachCharacter(db,user,match[1],await body(request),!!env.FEATURE_AUCTIONS);
+  }
   if(path==='/api/raids'&&request.method==='GET')return json({raids:await all(sql(db,raidSelect+' ORDER BY r.date DESC,r.created_at DESC'))});
   if(path==='/api/raids'&&request.method==='POST') {
    officer(user);const input=await body(request),defaults=await creationDefaults(db,env.FEATURE_ADMIN);

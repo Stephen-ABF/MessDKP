@@ -30,7 +30,8 @@ const SOURCE_NOTICE = 'This is a local EQResource reference cache, not the compl
 export const VERIFIED_ITEM_REFERENCES = Object.freeze([
   Object.freeze({
     itemId: 81773, name: 'Blood of the Dhampyre', classes: ['ALL'], races: ['ALL'], slots: ['RANGE'],
-    stats: { ac: 104, hp: 2006, mana: 1984, endurance: 1984, requiredLevel: 90, recommendedLevel: 95 },
+    stats: { ac:104,hp:2006,mana:1984,endurance:1984,requiredLevel:90,recommendedLevel:95,weight:1.3,tribute:6759,strength:21,heroicStrength:7,stamina:23,heroicStamina:7,intelligence:21,heroicIntelligence:7,wisdom:21,heroicWisdom:7,agility:21,heroicAgility:7,dexterity:21,heroicDexterity:8,charisma:23,heroicCharisma:7,magicResist:45,fireResist:45,coldResist:45,diseaseResist:45,poisonResist:45,attack:18,hpRegen:20,manaRegen:2,healAmount:13,spellDamage:13,clairvoyance:20 },
+    details: {fields:[{label:'Size',value:'SMALL'}],effects:['Effect: Prismatic Ward VIII - Casting Time: 0.5s','Effect: Improved Dodge V - Worn',"Focus: Corrupted Sylvan's Rot II"],augments:['Type 7 (General: Group)','Type 3 (General: Spell Effect)'],lore:'Blood of the Dhampyre',sourceText:null},
     flags: ['Magic', 'Lore', 'No Trade', 'Placeable'], advancedLoot: '81773^1557^Blood of the Dhampyre',
     sourceUrl: 'https://items.eqresource.com/items.php?id=81773',
     sourceCheckedAt: 'Feb 18, 2025, 01:26 AM', sourceUpdatedAt: 'Jul 3, 2022, 12:07 AM',
@@ -40,6 +41,7 @@ export const VERIFIED_ITEM_REFERENCES = Object.freeze([
     itemId: 44354, name: 'Ancient Pearlescent Mask', classes: ['MNK'],
     races: ['Drakkin', 'Froglok', 'Human', 'Iksar'], slots: ['FACE'],
     stats: { ac: 5, agility: 5, magicResist: 10 }, flags: ['Magic', 'No Trade'],
+    details: {fields:[{label:'Size',value:'SMALL'},{label:'Weight',value:'0.1'}],effects:['Effect: Serpent Sight - Worn'],augments:[],lore:'Ancient Pearlescent Mask',sourceText:null},
     advancedLoot: '44354^772^Ancient Pearlescent Mask', sourceUrl: 'https://items.eqresource.com/items.php?id=44354',
     sourceCheckedAt: 'Nov 2, 2016, 03:37 AM', sourceUpdatedAt: 'Sep 3, 2014, 06:26 AM',
     retrievedAt: '2026-11-12T02:49:54.785Z', verificationMethod: 'EQResource indexed item page text', metadataStatus: 'verified_reference',
@@ -92,14 +94,29 @@ function itemFromRow(row) {
   if (!row) return null;
   return {
     itemId: row.item_id, name: row.name, classes: decodeJson(row.classes_json), races: decodeJson(row.races_json),
-    slots: decodeJson(row.slots_json), stats: decodeJson(row.stats_json), flags: decodeJson(row.flags_json),
+    slots: decodeJson(row.slots_json), stats: sourceStatsForRow(row), flags: decodeJson(row.flags_json),
     advancedLoot: row.advanced_loot, sourceUrl: row.source_url, sourceCheckedAt: row.source_checked_at,
     sourceUpdatedAt: row.source_updated_at, retrievedAt: row.retrieved_at,
     verificationMethod: row.verification_method, metadataStatus: row.metadata_status,
     iconUrl: row.icon_url || null, metadataComplete: row.metadata_complete === 1,
-    details: decodeJson(row.full_details_json) || {fields:[],effects:[],augments:[],lore:null,sourceText:null},
+    details: sourceDetailsForRow(row),
     sourceStatus: decodeJson(row.source_status_json),
   };
+}
+
+function sourceDetailsForRow(row){
+ const details=decodeJson(row.full_details_json);
+ const starter=VERIFIED_ITEM_REFERENCES.find(item=>item.itemId===row.item_id);
+ const isStarter=['EQResource public item page text','EQResource indexed item page text'].includes(row.verification_method);
+ if(starter&&isStarter&&(!details||(!details.fields?.length&&!details.effects?.length)))return cleanDetails(starter.details);
+ return details||{fields:[],effects:[],augments:[],lore:null,sourceText:null};
+}
+
+function sourceStatsForRow(row){
+ const stats=decodeJson(row.stats_json);
+ const starter=VERIFIED_ITEM_REFERENCES.find(item=>item.itemId===row.item_id);
+ if(starter&&['EQResource public item page text','EQResource indexed item page text'].includes(row.verification_method))return {...starter.stats,...(stats||{})};
+ return stats;
 }
 
 export async function seedVerifiedItemReferences(db) {
@@ -200,7 +217,7 @@ export async function getCachedItemDetails(db, itemId) {
  const row=await db.prepare('SELECT * FROM item_references WHERE item_id=?').bind(reference.itemId).first();
  if(row)return itemFromRow(row);
  const seed=VERIFIED_ITEM_REFERENCES.find(i=>i.itemId===reference.itemId);
- return seed?{...seed,iconUrl:null,metadataComplete:false,details:cleanDetails(),sourceStatus:null}:null;
+ return seed?{...seed,iconUrl:null,metadataComplete:false,details:cleanDetails(seed.details),sourceStatus:null}:null;
 }
 export async function cacheItemDetails(db, incoming) {
  const reference=parseEqItemReference(incoming?.itemId);

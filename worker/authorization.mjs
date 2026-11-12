@@ -12,6 +12,9 @@ export async function authorizeRoute(request,db,auth){
  const owned=async characterId=>!!await db.prepare("SELECT id FROM characters WHERE id=? AND owner_id=? AND kind IN('main','alt') AND approved_at IS NOT NULL").bind(characterId,auth.user.id).first();
  let match;
  if(path==='/api/dashboard')return one('overview',2);
+ if(path==='/api/loot-history')return any(['auctions','auctionAdmin'],2);
+ if(path==='/api/my-auctions')return any(['auctions','auctionAdmin'],2);
+ if(path==='/api/item-comparison')return any(['items','auctionAdmin','overview','mains','characters','auctions'],2);
  if(path==='/api/access'||path.startsWith('/api/access/'))return one('access');
  if(path==='/api/audit')return one('audit',2);
  if(path==='/api/catalog'||path.startsWith('/api/catalog/'))return managed('items');

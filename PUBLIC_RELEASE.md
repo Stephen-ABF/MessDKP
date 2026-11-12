@@ -1,34 +1,21 @@
-# Guild Desk 0.8.0
+# Guild Desk 0.9.0
 
-Officers can now test the full auction lifecycle immediately, cancel open auctions and cancel a named character's bid. Guild auctions also filter by equipment slot. The Python tracker adapter provides Copy JSON and Save JSON, and Boss loot preparation opens directly on Raid-night import. The built-in live log companion page is hidden from navigation and direct page access; its stored records and backend are retained.
+November 12, 2026. Add guild loot history, personal auction outcomes, equipment comparisons and clearer loot preparation.
 
-## Auction controls
+## New views
 
-Open Auctions. Expand Officer auction controls under an open auction to Cancel auction or Complete now (testing). Open the auction details for Cancel a character bid. Each action requires auction-management write access, an officer reason and explicit confirmation. Default officer and administrator profiles have this permission; read-only users and ordinary members do not.
+Loot history is a member navigation section using Auctions read permission (or Auction management read permission). It lists only settled, noncancelled auctions, with one row per winner and unsold rows when there is no award. Filters: item name, usable class, equipment slot, recorded item type, winner, boss, raid dates and award status. Pending awards are distinct from confirmed awards. Original holding looters stay out of the guild archive. Boss/raid fields are unknown when no linked boss draft exists.
 
-Cancellation applies only while bidding is open, before its deadline. It withdraws active bids, retains their original evidence and creates no awards or DKP charges. Settled/charged auctions cannot be silently reversed through this control. A named bid cancellation does not ban a later bid; retrying the same cancellation cannot remove a later rebid. The character picker contains all approved mains, not a list of participants. Other sealed bids and amounts stay private. Cancelled auctions have a separate status/filter, retain their cancellation reason, and do not expose other bidders' events or count as loot won.
+Auctions has Guild auctions, Won and Lost tabs. Won/Lost are tied to the signed-in account's final active bids across its characters, excluding no-bid, withdrawn, live, cancelled and unsettled auctions. Won shows recorded holding looters and quantities from the retained raid-night import. When multiple looters held copies, all are shown; no arbitrary per-winner copy assignment or delivery confirmation is invented. Lost shows your bid and the lowest winning bid; the gap is zero for a tie-break, unknown for an ineligible bid. Award price is separate from winning bid.
 
-Complete now (testing) ends bidding at the server clock and calculates the same results as normal closing. The original scheduled deadline is retained and displayed. Closing alone does not charge DKP: an officer must still confirm each item award. Normal auctions are initially published for24hours. Per-bid balance caps, no reservations or combined affordability limits, and possible negative balances after officer-confirmed charges remain unchanged.
+Click any item link for selected-item-left / saved-equipment-right comparison. Choose your approved main/alt and the matching paired slot. Empty or unknown slots remain explicit. Numeric differences require both values to be recorded; base item stats exclude installed augments and do not score effects. Equipment remains read-only in this comparison; only the owner can change gear through the existing Overview. Item stats remain uploaded-file data, with approved EQResource icons only and manual source links.
 
-Equipment-slot filters use the item slots captured at publication, including every applicable slot for multi-slot items. Slot options come from the recorded item data. Older auctions use the known cached item slots at migration time; unknown slots stay unknown.
+Officer auction controls now separate action descriptions, reasons, confirmation checkboxes and buttons. Reasons, write permissions, CSRF and retry protections remain required. Auction closing and officer-confirmed DKP deductions remain separate.
 
-## Python copy/paste or file import
+Raid-night import preview/review and matched draft rows show icons for unique exact item names. Ambiguous names do not acquire a guessed identity or icon. Duplicate-name counts are evaluated before raw catalog records load, in bounded 50-name chunks. Remove from auction and Restore actions exclude unwanted source rows before handoff or draft items before publication while retaining original evidence and revision checks. Published rows cannot be silently removed.
 
-Run companion/Start-Python-Tracker-Guild-Desk.cmd and select the owner's existing original tracker .py file. The original script/config are not included in public source. The adapter adds a Guild Desk menu and a visible top export bar:
+## Verification
 
-- Copy JSON puts selected structured loot into the clipboard after confirming the raid date.
-- Save JSON saves the same structured loot to a file.
+Full private/public test results and build metadata are included in the test ZIP. New coverage includes multiwinner history, literal filters, ownership and atomic ACL revocation, cross-account and late-response races, paired slots, missing stats, bounded icon decoding with escaped pipes, production import exclusions, draft removal, holder provenance, Won/Lost/ties, and no DKP writes during these read/review operations.
 
-Both paths preserve stable event identities in companion/state, keep duplicate real loot events distinct, and leave the original OpenDKP/Excel exports, selections and tracker statuses unchanged. A failed clipboard operation retains identity metadata for a safe retry. Copying or saving does not mean the website received the data or that loot was delivered.
-
-On the website, open Boss loot preparation > Raid-night import. Paste copied JSON into Paste JSON from Python, or choose a saved file with Upload JSON or loot file. Use one input at a time, confirm the raid/date, preview, save the reviewed import and prepare each boss draft. Publishing auctions remains separate. The settings JSON alone has no loot events. The holding looter is a custodian, not automatically the winner. API push, notifications, delivery confirmation and Excel writeback remain future work.
-
-The native live log companion is hidden while the guild uses its Python tracker. This does not delete existing capture evidence, queues or pairing data. Do not delete companion/state. The previously reported native Windows file-picker issue is deferred with that hidden workflow; no fix for it is claimed in this release.
-
-## Upgrade and validation
-
-Requires Node.js24 or later; the Python adapter requires Python3.8+ with Tkinter. Stop the application before backing up or copying its database. Extract into a new folder, preserve data, companion/state, original tracker/config and any GUILD_DESK_DB path, then launch Start-Guild-Desk.cmd. Additive migration0013 adds auction-control receipts/cancellation metadata and slot snapshots without changing existing bids, deadlines or ledger charges. Earlier applied migrations remain unchanged.
-
-Private and sanitized-public test counts and exact source identity are in the artifact metadata. Independent bounded reviews cover sealed privacy, cancellation/rebid retries, late bids, actual current-ACL revocation, normal award confirmation, slot identity, Python clipboard failure/corruption and UI submission safety. Disposable browser checks exercised slot filtering, early completion, award confirmation, auction/bid cancellation and pasted JSON preview/import. The actual original Python Windows GUI and OS clipboard are not claimed as automated desktop validation; headless UI and cross-language parser checks passed.
-
-Item stats remain uploaded-file only. Explicitly approved EQResource icon PNGs are retained from0.7.1; source item pages are manual links, with no stat scraping. Private guild records, original tracker/config, logs, databases, state, credentials, hosting identity, datasets and private Git history remain excluded from public source and artifacts. No owner preview or live database was altered. A public source push is distinct from a GitHub tag/Release or hosting deployment. Existing hosting remains unpublished and host access/capacity limitations are unchanged.
+No new schema migration: applied migrations0000-0013 remain unchanged. Preserve data, companion/state, original tracker/settings and any custom GUILD_DESK_DB location. Stop the owner app before backing up its SQLite data and upgrading. The development session never restarts the owner preview or modifies live data. Native log companion UI remains hidden; use the Python import workflow. Hosting deployment and original Windows tracker/clipboard interaction are not newly claimed.

@@ -20,3 +20,7 @@ When an access context is present, `canEdit` and mutation preflight require leve
 ## Inventory export import
 
 Approved owners can initialize equipped slots and installed augments through the Inventory subtab. See INVENTORY.md for file format, preview/replacement rules and atomic access checks.
+
+## Read-only item comparisons (0.9)
+
+GET /api/item-comparison returns only the signed-in account approved mains/alts and saved equipment. Caller-supplied character/user parameters never broaden ownership. The item dialog compares selected item left against saved worn item right, with paired-slot choice. Unknown stats remain unknown; base numeric changes exclude installed augments. No gear, ledger or award changes occur.

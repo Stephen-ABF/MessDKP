@@ -33,3 +33,7 @@ Up to 200 nonempty source lines and 1000 total pieces are accepted per batch, wi
 If different input rows resolve to the same item ID, the draft is blocked with `readyToPublish:false`, a warning, and publication error `duplicate_item_rows`. The manager combines the copies into one row's quantity (maximum 50) and ignores the extra rows; every original source line and each review decision remain preserved. The backend never publishes separate auctions for the same included item ID in a boss batch. Combined quantities above 50 require reducing/splitting the source into explicitly reviewed separate boss batches.
 
 File-only matching does not seed bundled item references. Existing published auction identities, names, classes and results remain historical snapshots when a newer catalog is activated. Loot draft preparation and lookup do not create auctions or change DKP; publication and officer award confirmation remain separate explicit actions.
+
+## Review usability (0.9)
+
+Import preview/review decorates unique exact uploaded names with available icons in bounded chunks. Ambiguous names remain unresolved. Draft item details include their reference advancedLoot icon identity. Clear Remove from auction / Restore actions reuse audited exclusions and draft revision checks, without erasing original source evidence or changing published auctions.

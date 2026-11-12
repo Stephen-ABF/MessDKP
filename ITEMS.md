@@ -26,7 +26,9 @@ Canonical item fields include itemId,name,classes,races,slots,stats,flags,advanc
 
 The compact item pane groups AC/HP/mana/endurance, required/recommended levels, attributes and heroics, saves, and regeneration/combat bonuses. Weight and tribute remain preserved source fields but are omitted from the compact stat display. Flags, slots, classes, races, effect/focus entries and augmentation slots are shown. The full details view can show every supplied field, including unknown fields. Source text is always plain text, never executable markup.
 
-Effect IDs and names are imported from the dump. If a spell name is missing, the pane shows the known kind and spell ID rather than inventing an effect or description. Main-file data does not provide full spell descriptions or icon image files: `metadataComplete` remains false and `iconUrl` is null. No image URL is guessed from an icon ID. Optional lore/charm files and a local icon/spell dataset are not yet imported.
+Effect IDs and supplied names are imported from the dump. Missing names remain unknown until a separate name reference can resolve them. Main-file data does not provide full spell descriptions or icon image files: `metadataComplete` remains false and catalog `iconUrl` is null. No image URL is guessed from an icon ID. Optional lore/charm files and a full spell-description dataset are not yet imported.
+
+Missing effect names can now be filled from the separate persistent Raidloot spell-name cache; supplied item names always take priority. Unknown numeric fallback labels are hidden in the compact effects list while structured spell IDs remain available. This cache stores names only and never changes item stats. See SPELL_NAMES.md for the fixed primary source, its older source date, bounded read-through download and officer refresh action.
 
 ## Guild history
 

@@ -1,0 +1,3 @@
+CREATE TABLE spell_name_entries (spell_id INTEGER PRIMARY KEY CHECK(spell_id>0), name TEXT NOT NULL CHECK(length(name)>0 AND length(name)<=250));
+--> statement-breakpoint
+CREATE TABLE spell_name_cache (id INTEGER PRIMARY KEY CHECK(id=1), source_url TEXT NOT NULL CHECK(source_url='https://s3.amazonaws.com/raidloot/spells.csv.gz'), source_modified_at TEXT, fetched_at TEXT NOT NULL, file_sha256 TEXT NOT NULL, entry_count INTEGER NOT NULL CHECK(entry_count>0));

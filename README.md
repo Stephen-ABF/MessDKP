@@ -1,4 +1,4 @@
-# Guild Desk 0.6.1
+# Guild Desk 0.7.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -20,9 +20,13 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.6
+## New in 0.7
 
-This update fixes blank audit dates, separates raid/date attendance columns with own missing-attendance links, preserves registry class through persona captures, and caps each accepted bid at current main DKP without reservations. A graphical local companion remembers its log and scoped device connection between bosses. Loot review preserves scroll/focus. Uploaded EQItems/SODEQ files supply item details and exact-name matching. Owners can import their inventory exports with equipped slots and installed augments. EQResource is hyperlinks only.
+Item panes hide zero-valued stats and technical effect fields, display friendly Click/Worn/Focus names, and preserve augment slots. Missing spell names use a separate bounded persistent names-only reference; uploaded effect names always take priority. Item stats still come from uploaded files.
+
+Raid-night imports accept the existing Python tracker Excel TSV, new structured Guild Desk JSON, or selected raw EQ loot-log text. Holders are custodians, never automatic auction winners. Preview first, retain source/time/exclusions and prepare each boss into one reviewed draft. No automatic auctions, awards, DKP or external notifications. The additive Python launcher loads your own tracker script without including its private source/config in this package; OpenDKP and Excel exports remain. See COMPANION_IMPORT.md and SPELL_NAMES.md.
+
+Attendance writers can reconstruct a missed capture using Clone dump on the same raid. Review the target time, original roster and rate, supply a reason and confirm. Cloned ticks retain their original source and officer attribution; retries cannot earn twice. Custom attendance-only access works without Overview permissions. See ATTENDANCE.md.
 
 ## DKP and loot behavior
 
@@ -34,6 +38,6 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.6.1 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.7.0 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.

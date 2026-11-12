@@ -13,7 +13,7 @@ await mkdir(outputRoot,{recursive:true});
 if(await realpath(outputRoot)!==outputRoot)throw Error('The output directory must not resolve through a symlink or junction.');
 try{const info=await lstat(destination);if(!info.isDirectory()||info.isSymbolicLink()||(await readdir(destination)).length)throw Error('Refusing to overwrite an existing nonempty or linked public destination. Use a fresh versioned destination.');}catch(error){if(error.code!=='ENOENT')throw error;}
 
-const topFiles=new Set(['build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','package.json','.gitignore','API.md','AUCTIONS.md','ADMIN.md','ITEMS.md','REPORTS.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','AUCTION_RULES.md','PUBLIC_RELEASE.md','OWNERSHIP.md','EQUIPMENT.md','INVENTORY.md','CATALOG.md','ACCESS.md','AUDIT.md']);
+const topFiles=new Set(['build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','package.json','.gitignore','API.md','AUCTIONS.md','ADMIN.md','ITEMS.md','REPORTS.md','ATTENDANCE.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','AUCTION_RULES.md','PUBLIC_RELEASE.md','OWNERSHIP.md','EQUIPMENT.md','INVENTORY.md','CATALOG.md','SPELL_NAMES.md','COMPANION_IMPORT.md','ACCESS.md','AUDIT.md']);
 const dirs=new Set(['worker','web','tests','local','companion','drizzle','scripts']);
 const permittedExtensions=new Set(['.mjs','.js','.html','.css','.sql','.json','.md','.cmd']);
 const records=[];
@@ -28,7 +28,7 @@ async function walk(relative=''){
   }
   if(item==='tests/fixtures'||item==='companion/state'||entry.name.startsWith('.')&&item!=='companion/.gitignore')continue;
   if(entry.isDirectory()){if(item==='drizzle/meta')await walk(item);}
-  else if(entry.isFile()&&(permittedExtensions.has(path.extname(item))||item==='companion/.gitignore')&&(path.extname(item)!=='.json'||item==='drizzle/meta/_journal.json'))records.push(item);
+  else if(entry.isFile()&&(permittedExtensions.has(path.extname(item))||item==='companion/.gitignore'||item==='companion/guild_desk_export.py')&&(path.extname(item)!=='.json'||item==='drizzle/meta/_journal.json'))records.push(item);
  }
 }
 await walk();
@@ -45,10 +45,10 @@ function publicText(text,file){
 const files=new Map();
 for(const file of records)files.set(file,publicText(await readFile(path.join(root,file),'utf8'),file));
 const packageInfo=JSON.parse(files.get('package.json'));
-if(packageInfo.version!=='0.6.1')throw Error('Review the public exporter and release notes before exporting a different release version.');
+if(packageInfo.version!=='0.7.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
 packageInfo.scripts={...packageInfo.scripts,build:'node build.mjs --local',test:'node --test'};
 files.set('package.json',JSON.stringify(packageInfo,null,2)+'\n');
-files.set('README.md',`# Guild Desk 0.6.1
+files.set('README.md',`# Guild Desk 0.7.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -70,9 +70,13 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.6
+## New in 0.7
 
-This update fixes blank audit dates, separates raid/date attendance columns with own missing-attendance links, preserves registry class through persona captures, and caps each accepted bid at current main DKP without reservations. A graphical local companion remembers its log and scoped device connection between bosses. Loot review preserves scroll/focus. Uploaded EQItems/SODEQ files supply item details and exact-name matching. Owners can import their inventory exports with equipped slots and installed augments. EQResource is hyperlinks only.
+Item panes hide zero-valued stats and technical effect fields, display friendly Click/Worn/Focus names, and preserve augment slots. Missing spell names use a separate bounded persistent names-only reference; uploaded effect names always take priority. Item stats still come from uploaded files.
+
+Raid-night imports accept the existing Python tracker Excel TSV, new structured Guild Desk JSON, or selected raw EQ loot-log text. Holders are custodians, never automatic auction winners. Preview first, retain source/time/exclusions and prepare each boss into one reviewed draft. No automatic auctions, awards, DKP or external notifications. The additive Python launcher loads your own tracker script without including its private source/config in this package; OpenDKP and Excel exports remain. See COMPANION_IMPORT.md and SPELL_NAMES.md.
+
+Attendance writers can reconstruct a missed capture using Clone dump on the same raid. Review the target time, original roster and rate, supply a reason and confirm. Cloned ticks retain their original source and officer attribution; retries cannot earn twice. Custom attendance-only access works without Overview permissions. See ATTENDANCE.md.
 
 ## DKP and loot behavior
 
@@ -84,7 +88,7 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.6.1 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.7.0 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.
 `);
@@ -94,10 +98,11 @@ const extras=Array.from({length:27},(_,index)=>'Demochar'+letters(index));
 function artificialRoster(names){return names.map(name=>{const index=name==='Mainhero'?0:name==='Secondhero'?1:extras.indexOf(name)+2;return[name,'80',classes[index%classes.length],'Demo Member','','01/01/26','Demo Zone','Artificial example; not an ownership claim','','on','off',String(1000+index),'01/01/26','Artificial example; not an ownership claim',''].join('\t');}).join('\n')+'\n';}
 files.set('tests/fixtures/DemoGuild_test-20261111-180515(1).txt',artificialRoster(['Mainhero',...extras.slice(0,25)]));
 files.set('tests/fixtures/DemoGuild_test-20261111-182058(1).txt',artificialRoster(['Mainhero','Secondhero',...extras]));
-files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.6.1',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
+files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.7.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
 
 let inputIsPublic=false;try{inputIsPublic=JSON.parse(await readFile(path.join(root,'PUBLIC_SOURCE.json'),'utf8')).syntheticSamples===true;}catch{}
 for(const [file,text]of files){
+ if(/[\uFFFD\u001a]/u.test(text))throw Error('Invalid replacement or SUB character in public source: '+file);
  if(/(?:^|\/)(?:\.git|\.openai|dist|outputs|data|logs|state|node_modules)(?:\/|$)/i.test(file)||/\.(?:sqlite|db|env|log|pcap)$/i.test(file))throw Error('Forbidden public file path: '+file);
  if(/git\.chatgpt-team\.site|C:\\Users\\|BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}/.test(text)||!inputIsPublic&&/\b(?:Mainhero|Secondhero)\b|DemoGuild_test/.test(text))throw Error('Potential private source content requires review: '+file);
 }

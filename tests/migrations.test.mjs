@@ -83,16 +83,16 @@ test('saved companion device migration preserves an existing manual capture and 
  }finally{db.close();}
 });
 
-test('catalog and inventory migrations preserve existing gear, accounts and exact DKP without importing any dataset',async()=>{
+test('catalog, inventory, spell-cache, custody and attendance-clone migrations preserve existing gear, accounts and exact DKP without importing any dataset',async()=>{
  const db=new DatabaseSync(':memory:');
  const apply=async name=>{for(const statement of(await readFile(new URL('../drizzle/'+name,import.meta.url),'utf8')).split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))db.prepare(statement).run();};
  try{
   for(const name of ['0000_initial','0001_item_catalog_boss_loot','0002_live_loot_capture','0003_assignment_history','0004_character_equipment','0005_attendance_eligibility','0006_access_profiles','0007_companion_devices'])await apply(name+'.sql');
   db.exec("INSERT INTO users VALUES('owner','owner@fixture.invalid','Owner','fixture','fixture','admin','2026-11-12'); INSERT INTO characters VALUES('hero','hero','Hero',100,'Bard','Raider','main','owner','2026-11-12'); INSERT INTO item_references(item_id,name,source_url,retrieved_at,verification_method,metadata_status) VALUES(1,'Existing gear','https://items.eqresource.com/items.php?id=1','now','fixture','unresolved'); INSERT INTO character_equipment VALUES('hero','head',1,'reference','now','owner','old-gear'); INSERT INTO ledger VALUES('credit','hero',NULL,-7,'Existing balance','owner','now','credit-key');");
   const gear=db.prepare('SELECT * FROM character_equipment').all(),ledger=db.prepare('SELECT * FROM ledger').all();
-  await apply('0008_uploaded_item_catalog.sql');await apply('0009_inventory_imports.sql');
+  await apply('0008_uploaded_item_catalog.sql');await apply('0009_inventory_imports.sql');await apply('0010_spell_names.sql');await apply('0011_raid_loot_imports.sql');await apply('0012_attendance_clones.sql');
   assert.deepEqual(db.prepare('SELECT * FROM character_equipment').all(),gear);assert.deepEqual(db.prepare('SELECT * FROM ledger').all(),ledger);assert.equal(db.prepare('SELECT COUNT(*) n FROM users').get().n,1);
-  for(const table of ['catalog_imports','catalog_items','inventory_imports','inventory_equipment_augments'])assert.equal(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,0);
+  for(const table of ['catalog_imports','catalog_items','inventory_imports','inventory_equipment_augments','spell_name_entries','spell_name_cache','raid_loot_imports','raid_loot_import_events','raid_loot_handoff_guards','attendance_tick_clones'])assert.equal(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,0);
   assert.deepEqual({...db.prepare('SELECT active_import_id,revision FROM catalog_state').get()},{active_import_id:null,revision:0});
  }finally{db.close();}
 });

@@ -15,6 +15,7 @@ export async function authorizeRoute(request,db,auth){
  if(path==='/api/access'||path.startsWith('/api/access/'))return one('access');
  if(path==='/api/audit')return one('audit',2);
  if(path==='/api/catalog'||path.startsWith('/api/catalog/'))return managed('items');
+ if(path==='/api/loot-imports'||path.startsWith('/api/loot-imports/'))return managed('loot');
  if((match=/^\/api\/characters\/([^/]+)\/inventory\/(preview|import)$/.exec(path))){if(!await owned(match[1]))throw new AuthorizationError('You can import inventory only for your own approved character.');return any(['overview','mains'],3);}
  if(path==='/api/raid-options')return any(['attendance','loot','captures'],2);
  if(path==='/api/attendance-requests/options')return one('corrections',2);

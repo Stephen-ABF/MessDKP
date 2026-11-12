@@ -71,6 +71,27 @@
       "when": 1794498684808,
       "tag": "0009_inventory_imports",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794503048540,
+      "tag": "0010_spell_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794503628496,
+      "tag": "0011_raid_loot_imports",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794505791483,
+      "tag": "0012_attendance_clones",
+      "breakpoints": true
     }
   ]
 }

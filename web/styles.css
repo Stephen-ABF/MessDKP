@@ -381,3 +381,21 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .inventory-result { color: var(--good); font-size: 13px; }
 #inventory-preview td { vertical-align: top; }
 #inventory-preview .table-wrap { margin-top: 16px; }
+
+.eq-effect-kind { color: #b9cce7; }
+
+.raid-loot-group { border-top: 1px solid var(--line); padding-top: 18px; }
+#raid-loot-events .table-wrap { margin-top: 16px; }
+#raid-loot-events td { vertical-align: top; }
+
+.attendance-clone { min-width: 270px; max-width: 620px; white-space: normal; }
+.attendance-clone summary { color: var(--accent); }
+.attendance-clone label { font-size: 12px; }
+.attendance-clone-review { border-top: 1px solid var(--line); padding-top: 15px; }
+.clone-roster { max-height: 300px; overflow: auto; }
+.clone-roster .table-wrap { margin: 0; }
+.tick-clone-origin { margin-top: 7px; max-width: 460px; white-space: normal; }
+.tick-clone-origin summary { font-size: 11px; color: var(--muted); }
+.tick-clone-origin .item-facts { grid-template-columns: 1fr; }
+
+.tick-clone-origin dd > .muted { display:block; margin-top:.3rem; }

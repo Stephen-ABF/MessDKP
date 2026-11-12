@@ -39,7 +39,7 @@ jobs:
           version = os.environ['RELEASE_TAG']
           if not re.fullmatch(r'v\d+\.\d+\.\d+', version):
               raise SystemExit('Invalid release tag')
-          top = {'README.md','PUBLIC_RELEASE.md','PUBLIC_SOURCE.json','OWNERSHIP.md','EQUIPMENT.md','INVENTORY.md','CATALOG.md','ACCESS.md','AUDIT.md','API.md','AUCTIONS.md','AUCTION_RULES.md','ADMIN.md','ITEMS.md','REPORTS.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','package.json','build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','.gitignore'}
+          top = {'README.md','PUBLIC_RELEASE.md','PUBLIC_SOURCE.json','OWNERSHIP.md','EQUIPMENT.md','INVENTORY.md','CATALOG.md','SPELL_NAMES.md','COMPANION_IMPORT.md','ACCESS.md','AUDIT.md','API.md','AUCTIONS.md','AUCTION_RULES.md','ADMIN.md','ITEMS.md','REPORTS.md','ATTENDANCE.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','package.json','build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','.gitignore'}
           folders = {'worker','web','tests','local','companion','drizzle','scripts'}
           extensions = {'.mjs','.js','.html','.css','.sql','.json','.md','.cmd'}
           tracked = subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
@@ -51,6 +51,7 @@ jobs:
               allowed = name in top or name in {'.github/workflows/ci.yml','.github/workflows/release.yml','companion/.gitignore'}
               allowed = allowed or (len(p.parts)==2 and p.parts[0] in folders and p.suffix in extensions-{'.json'} and all(not part.startswith('.') for part in p.parts)) or name=='drizzle/meta/_journal.json'
               allowed = allowed or bool(re.fullmatch(r'tests/fixtures/DemoGuild_test-\d{8}-\d{6}\(1\)\.txt', name))
+              allowed = allowed or name == 'companion/guild_desk_export.py'
               if not allowed:
                   continue
               path = root / name

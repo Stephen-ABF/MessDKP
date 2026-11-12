@@ -66,3 +66,12 @@ Each newly accepted bid or edit must be at most the current approved main ledger
 GET /api/catalog requires items.read. POST /api/catalog/import requires items.write, same origin and CSRF, multipart file/expectedRevision/optional sourceDate. The upload is capped at 32 MiB compressed/plain and 256 MiB expanded; activation is atomic. POST /api/catalog/imports/:id/discard cancels incomplete staging only.
 
 POST /api/characters/:id/inventory/preview accepts JSON {fileName,text}; POST .../inventory/import accepts {importId,fileName,text,selections:[{slotKey,expectedItemId}]}. Both require approved ownership and overview.write or mains.write, same origin and CSRF. Text is capped at 2 MiB. The server reparses on commit, atomically guards selected slots, caches selected uploaded details and stores installed augments; no DKP/award writes.
+
+
+## Raid-night tracker imports (0.7)
+
+Attendance reconstruction: POST /api/raids/:raidId/ticks/:sourceTickId/clone/preview with {targetTime,reason} returns a review token, original roster, current main/alt counts and projected DKP. POST the matching /clone endpoint with the same values plus previewToken and a reusable idempotencyKey to confirm. Both require attendance.write, same origin and CSRF. Clones stay in the same raid and preserve source attribution; occupied times and stale previews return409. Normal GET raid/tick responses include origin metadata for cloned ticks. See ATTENDANCE.md.
+
+GET /api/loot-imports and GET /api/loot-imports/:id require loot.read. POST /api/loot-imports/preview validates the selected tracker-json, tracker-tsv or eq-log file and context without committing. POST /api/loot-imports commits the exact expectedPreviewHash. PUT /api/loot-imports/:id/events/:eventId changes reviewed exclusions with expectedRevision and a reason. POST /api/loot-imports/:id/groups/:groupId/prepare makes one officer-reviewed boss draft, without publishing it. Mutations require loot.write, same origin and CSRF. Item holders remain separate from auction recipients; no attendance/award/DKP writes occur. See COMPANION_IMPORT.md.
+
+GET /api/catalog/spell-names reads spell-cache provenance; POST .../refresh requires items.write, same origin and CSRF. The fixed spell reference supplies missing effect names only. Item statistics remain uploaded-file data. See SPELL_NAMES.md.

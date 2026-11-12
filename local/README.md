@@ -17,4 +17,4 @@ Stop Guild Desk before copying `data/guild-desk.sqlite` for a backup. While the 
 
 At startup the server reads `drizzle/meta/_journal.json`, checks every previously applied migration's SQL and journal hashes, and applies new migrations in one transaction. Applied migration files must remain unchanged. Missing, changed, or failed migrations prevent the server from listening. An existing database without this migration history is rejected; it is never automatically adopted or overwritten.
 
-The disposable `dev-server.mjs` remains a separate testing tool. It does not use this persistent database. Request uploads have a 6 MiB maximum.
+The disposable `dev-server.mjs` remains a separate testing tool. It does not use this persistent database. General requests have a 6 MiB maximum; item catalog uploads accept a file up to 32 MiB, with an expanded-text limit of 256 MiB. Compress large item catalogs as `.txt.gz`.

@@ -1,4 +1,6 @@
-# Guild Desk 0.6.0
+# Guild Desk 0.6.1
+
+Patch 0.6.1 fixes false session-expiry errors when uploading catalogs larger than 5 MiB. Internal identity checks now forward only the session cookie, and genuine server errors retain their status. Cookies, CSRF, access checks and upload limits remain enforced. Four regression cases use actual serialized large multipart bodies; see TEST_RESULTS.tap.
 
 This release adds an officer-uploaded EQItems/SODEQ catalog and owner-only character inventory imports. Item lookup, hover details and boss-loot matching use uploaded files. EQResource is an external hyperlink only: no remote item search, page retrieval or images. New catalog versions activate atomically without rewriting past auction snapshots. See CATALOG.md.
 
@@ -22,4 +24,4 @@ Hosted Worker/D1 full-file capacity and outer login-gate compatibility remain un
 
 ## Release process
 
-Prepare a fresh sanitized snapshot with `node scripts/prepare-public-source.mjs --destination ../outputs/public-guild-desk-v0.6.0-N`. Never publish private Git history. Public source: https://github.com/Stephen-ABF/MessDKP. The version-tag workflow builds/tests, packages safe tracked source plus Worker, and creates a GitHub release. A source push does not itself create a tag/Release or deploy a database. Artifact metadata records actual delivery state. Existing hosting remains unpublished.
+Prepare a fresh sanitized snapshot with `node scripts/prepare-public-source.mjs --destination ../outputs/public-guild-desk-v0.6.1-N`. Never publish private Git history. Public source: https://github.com/Stephen-ABF/MessDKP. The version-tag workflow builds/tests, packages safe tracked source plus Worker, and creates a GitHub release. A source push does not itself create a tag/Release or deploy a database. Artifact metadata records actual delivery state. Existing hosting remains unpublished.

@@ -31,3 +31,9 @@ An active bid in a database-open auction or any pending item award blocks detach
 worker/ownership.sql adds claims.approved_by and assignment_events. Current approved/rejected records are backfilled; actors are identified only from stored officer evidence. No user, attendance, ledger, auction or bid is seeded or erased.
 
 The ownership tests cover assigning-officer history, immutable events, retained credits, same-member reclaim without duplicate credit, stale same-owner retries, officer/auth/Origin/CSRF validation, concurrent detachment, a later different owner, active bids/pending awards, and honest unknown legacy actors. The existing account/attendance suite is also retained.
+
+## Access profiles and character equipment
+
+The bundled middleware checks each current access profile before dispatching legacy officer operations. Its optional trusted `handleApi(request,env,{userId,role})` adapter changes only that handler call's legacy role and only when the supplied userId matches the authenticated session. Authentication responses retain the actual database identity; client headers or JSON cannot select this adapter. The role projection does not change the user's saved role, identity or CSRF token. Access checks and atomic operation guards remain the responsibility of the bundled middleware.
+
+New character-request, claim-request, claim-approval, competing-claim-rejection and detachment audit events record the affected `subjectUserId` alongside the character. This preserves account filtering after later ownership changes without rewriting old audit evidence. Equipment edits are owner-only; officers can correct assignments but cannot change another member's gear slots.

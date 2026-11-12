@@ -58,4 +58,11 @@ if(!journalData.entries.some(entry=>entry.tag==='0004_character_equipment')){
  journalData.entries.push({idx:4,version:'6',when:Date.now(),tag:'0004_character_equipment',breakpoints:true});
  await writeFile(journal,JSON.stringify(journalData,null,2)+'\n','utf8');
 }
-console.log('Prepared ordered migrations through character equipment. Existing guild records are retained.');
+for(const [idx,tag,file]of [[5,'0005_attendance_eligibility','attendance-eligibility.sql'],[6,'0006_access_profiles','access.sql']]){
+ const addition=(await readFile(path.join(root,'worker',file),'utf8')).split(/(?=^(?:CREATE|INSERT)\s)/m).map(s=>s.trim()).filter(Boolean).join('\n--> statement-breakpoint\n')+'\n';
+ const target=path.join(directory,tag+'.sql');let previous;try{previous=await readFile(target,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
+ if(previous&&previous!==addition)throw new Error('Applied migration '+tag+' differs. Append a migration instead.');
+ if(!previous)await writeFile(target,addition,'utf8');
+ if(!journalData.entries.some(entry=>entry.tag===tag)){journalData.entries.push({idx,version:'6',when:Date.now(),tag,breakpoints:true});await writeFile(journal,JSON.stringify(journalData,null,2)+'\n','utf8');}
+}
+console.log('Prepared ordered migrations through access profiles. Existing guild records are retained.');

@@ -52,3 +52,19 @@ test('v0.3 database upgrades to assignment history and equipment without changin
   assert.throws(()=>db.prepare('DELETE FROM assignment_events').run(),/IMMUTABLE/);
  }finally{db.close();}
 });
+
+test('v0.4 upgrade backfills evidenced eligibility and access templates without moving credits or assignments',async()=>{
+ const db=new DatabaseSync(':memory:');
+ const apply=async name=>{for(const statement of (await readFile(new URL('../drizzle/'+name,import.meta.url),'utf8')).split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))db.prepare(statement).run();};
+ try{
+  for(const name of ['0000_initial.sql','0001_item_catalog_boss_loot.sql','0002_live_loot_capture.sql','0003_assignment_history.sql','0004_character_equipment.sql'])await apply(name);
+  db.exec("INSERT INTO users VALUES('owner','owner@fixture.test','Owner','x','x','admin','2026-11-12'); INSERT INTO characters VALUES('hero','hero','Hero',85,'Monk','Raider','main','owner','2026-11-12'); INSERT INTO raids VALUES('r','Old raid','2026-11-10',5,'owner','2026-11-12'); INSERT INTO ticks VALUES('t','r','fixture','Demo_test-20261110-180000.txt','2026-11-10T18:00:00','x','raw retained',1,'2026-11-12','fixture'); INSERT INTO attendance VALUES('a','t','hero','Monk','Raid','credited',5); INSERT INTO ledger VALUES('credit','hero','a',5,'Original tick','owner','2026-11-12','fixture');");
+  await apply('0005_attendance_eligibility.sql');await apply('0006_access_profiles.sql');
+  assert.equal(db.prepare('SELECT start_at FROM character_attendance_eligibility').get().start_at,'2026-11-10T18:00:00');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM access_profiles').get().n,3);
+  assert.equal(JSON.parse(db.prepare('SELECT permissions_json FROM access_effective_permissions WHERE user_id=?').get('owner').permissions_json).access,3);
+  assert.equal(db.prepare('SELECT owner_id FROM characters').get().owner_id,'owner');assert.equal(db.prepare('SELECT SUM(amount) n FROM ledger').get().n,5);
+  assert.equal(db.prepare('SELECT raw_text FROM ticks').get().raw_text,'raw retained');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM character_equipment').get().n,0);assert.equal(db.prepare('SELECT COUNT(*) n FROM access_operation_guards').get().n,0);
+ }finally{db.close();}
+});

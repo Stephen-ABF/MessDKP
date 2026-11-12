@@ -35,3 +35,7 @@ Members can request a specific existing tick only for their own approved main. A
 ## Schema and boundaries
 
 Apply `worker/admin.sql` with the parent schema before serving these routes. It adds `correction_requests`, `guild_settings`, and `dkp_adjustments`. Schema changes are not performed during requests. All posting/decision operations use D1 batch transactions and uniqueness guards. This module does not add role promotion, password resets, main changes, ownership transfers, negative-balance forgiveness, new source ticks, or automatic attendance inference.
+
+## Production access profiles
+
+The central Worker requires settings.write for settings changes, ledger.write for adjustments, corrections.write for own requests, and correctionReview.read/write for guild review/decisions. Legacy role checks are adapted only after the corresponding server permission gate. Each business transaction checks current permissions atomically. Corrections preserve the original tick rate and ledger idempotency.

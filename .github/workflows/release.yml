@@ -39,7 +39,7 @@ jobs:
           version = os.environ['RELEASE_TAG']
           if not re.fullmatch(r'v\d+\.\d+\.\d+', version):
               raise SystemExit('Invalid release tag')
-          top = {'README.md','PUBLIC_RELEASE.md','PUBLIC_SOURCE.json','OWNERSHIP.md','EQUIPMENT.md','API.md','AUCTIONS.md','AUCTION_RULES.md','ADMIN.md','ITEMS.md','REPORTS.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','package.json','build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','.gitignore'}
+          top = {'README.md','PUBLIC_RELEASE.md','PUBLIC_SOURCE.json','OWNERSHIP.md','EQUIPMENT.md','ACCESS.md','AUDIT.md','API.md','AUCTIONS.md','AUCTION_RULES.md','ADMIN.md','ITEMS.md','REPORTS.md','LOOT.md','CAPTURES.md','EQRESOURCE.md','package.json','build.mjs','server.mjs','Start-Guild-Desk.cmd','dev-server.mjs','prepare-migrations.mjs','.gitignore'}
           folders = {'worker','web','tests','local','companion','drizzle','scripts'}
           extensions = {'.mjs','.js','.html','.css','.sql','.json','.md','.cmd'}
           tracked = subprocess.check_output(['git','ls-files','-z']).decode().split('\0')

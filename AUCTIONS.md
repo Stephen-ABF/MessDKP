@@ -26,3 +26,7 @@ Settlement ranks final eligible main bids by amount descending, then earliest ti
 Creation idempotency keys are optional strings of8-128 characters, scoped to the creating officer. The client should generate one key per intended publication and retain it after a network-uncertain response. Matching creator/key and normalized creation fields returns the original item/minimum/deadline snapshot without a second audit entry. This remains true if guild settings or cached item metadata change before retry. Changed creation fields with the same key return409 `idempotency_conflict`; use a new key for an intentional new auction. Concurrent matching retries create exactly one auction and one publication audit. Existing auctions never inherit later guild minimum changes.
 
 Auction charges use the central `ledger_exact_total` database trigger. A `DKP_RANGE` rejection returns409 `balance_range` with a friendly explanation and rolls back award confirmation, ledger charge, and audit together. This rejects only values outside the exact technical numeric range; negative balances remain allowed.
+
+## Production access profiles
+
+Auctions.read/write permit auction viewing and own main bids/withdrawals. AuctionAdmin.read/write separately permit management reads and publishing/confirmation. Default Member has auction bidding access and no management rights. Open bid secrecy applies to every profile, including administrators. The auction manager can read its workspace without unrelated Characters permission. Read-time settlement still does not charge DKP.

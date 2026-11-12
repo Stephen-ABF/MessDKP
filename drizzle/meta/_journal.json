@@ -36,6 +36,20 @@
       "when": 1794490745494,
       "tag": "0004_character_equipment",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794492962054,
+      "tag": "0005_attendance_eligibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794492962055,
+      "tag": "0006_access_profiles",
+      "breakpoints": true
     }
   ]
 }

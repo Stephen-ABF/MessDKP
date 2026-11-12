@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createD1 } from './d1-adapter.mjs';
 import { handleReportsApi } from '../worker/reports.mjs';
 
-const schema = await readFile(new URL('../worker/schema.sql', import.meta.url), 'utf8');
+const schema = (await readFile(new URL('../worker/schema.sql', import.meta.url), 'utf8'))+'\n'+(await readFile(new URL('../worker/attendance-eligibility.sql', import.meta.url),'utf8'));
 function fixture() {
  const DB = createD1(schema);
  // Match D1's SELECT-batch result contract without editing the shared adapter here.
@@ -20,6 +20,7 @@ function fixture() {
  const character = (id, kind='main', owner=id, cls='Cleric') => {
   if(owner && owner!=='officer')addUser(owner);
   DB.raw.prepare('INSERT INTO characters(id,name_key,name,level,class_name,guild_rank,kind,owner_id,approved_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,id.toLowerCase(),id,85,cls,'Raider',kind,owner,owner?'2024-01-01':null);
+  DB.raw.prepare("INSERT INTO character_attendance_eligibility VALUES(?,'0001-01-01T00:00:00','registry_request')").run(id);
   return id;
  };
  const raid = (id,date,count,sourceDate=date) => {
@@ -103,10 +104,11 @@ test('corrected credited attendance counts once while pending,ineligible and emp
  }finally{h.close();}
 });
 
-test('approved mains with no check-ins receive zero of actual guild ticks and historical opportunities are not silently prorated',async()=>{
+test('new mains exclude pre-membership ticks even when officer approval happens later',async()=>{
  const h=fixture();try {
-  h.character('Absent');h.DB.raw.prepare("UPDATE characters SET approved_at='2026-11-11' WHERE id='Absent'").run();h.raid('past','2026-10-20',2);h.raid('today','2026-11-11',4);
-  const body=(await h.call()).body;assert.deepEqual(body.mains[0].windows.days30,{attendedTicks:0,totalTicks:6,percentage:0});assert.equal(body.denominator,'all_guild_ticks_in_window');
+  h.character('Absent');h.DB.raw.prepare("UPDATE character_attendance_eligibility SET start_at='2026-11-11T00:00:00' WHERE character_id='Absent'").run();h.DB.raw.prepare("UPDATE characters SET approved_at='2026-11-12' WHERE id='Absent'").run();h.raid('past','2026-10-20',2);h.raid('today','2026-11-11',4);
+  const body=(await h.call()).body;assert.deepEqual(body.mains[0].windows.days30,{attendedTicks:0,totalTicks:4,percentage:0});assert.equal(body.denominator,'eligible_guild_ticks_in_window');
+  assert.deepEqual((await h.call('/api/reports/mains/Absent/attendance?asOf=2026-11-11')).body.raids.map(r=>r.id),['today']);
  }finally{h.close();}
 });
 

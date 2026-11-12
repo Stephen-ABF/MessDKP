@@ -1,4 +1,4 @@
-# Guild Desk API v0.3
+# Guild Desk API v0.5
 
 Private owner-only test deployment. The first successful registration atomically becomes administrator; this bootstrap is safe only while the Sites access gate is owner-only. Do not widen access before the owner has registered. Subsequent registrations are members. Passwords use PBKDF2 SHA-256 with 100000 iterations and an independent 256-bit salt, compatible with the Workers WebCrypto iteration limit. No password recovery or email delivery in this slice.
 
@@ -14,7 +14,7 @@ All responses are JSON with `Cache-Control: no-store`. Errors: `{error: string, 
 | GET /api/characters | None | `{characters:[Character]}`. Members see the character registry for claims; ownerEmail only supplied for own records or officers. |
 | POST /api/characters | `{name,level,className}` | 201 `{character:Character,claim:Claim}`. Creates an unclassified, unowned registry record and the caller's pending claim atomically; ownership and main DKP still require officer approval. |
 | POST /api/claims | `{characterId}` | 201 `{claim:Claim}` |
-| GET /api/claims | Officer only | `{claims:[Claim]}` |
+| GET /api/claims | Claims read permission | `{claims:[Claim],assignments:[Assignment]}` |
 | POST /api/claims/:id/approve | `{kind:"main" or "alt"}` | `{claim:Claim,creditedDkp:number}`. Idempotent for matching repeated approval. |
 | GET /api/raids | None | `{raids:[Raid]}` |
 | POST /api/raids | Officer: `{name,date:"YYYY-MM-DD",rate?:positive integer,expansion?:string,raidType?:string}` | 201 `{raid:Raid}`. Explicit rate wins; otherwise use a configured expansion/raid-type preset or the current default. Supply both preset names together; an unknown preset without an explicit rate returns 400. |
@@ -24,7 +24,7 @@ All responses are JSON with `Cache-Control: no-store`. Errors: `{error: string, 
 | GET /api/ledger | None | `{entries:[LedgerEntry]}` own main characters; officers see all |
 | GET /api/audit | Officer only | `{entries:[AuditEntry]}` |
 
-`role` is `admin` or `member`; admin is the officer role for this first slice.
+`role` retains the legacy bootstrap identity. Production authorization uses the current database access profile and overrides from ACCESS.md; `/api/me`, registration and login return an `access` object with effective permissions. Legacy roles cannot bypass the central route gate.
 
 `Character`: `{id,name,level,className,rank,kind:"unclassified"|"main"|"alt",ownerId:null|string,ownerName:null|string,ownerEmail?:string,balance:number,pendingTicks:number,claimStatus:null|"pending"|"approved"|"rejected"}`.
 
@@ -49,3 +49,7 @@ This is a single-guild site. Its first committed attendance batch atomically bin
 ## Character profile equipment
 
 Authenticated character equipment reads and owner/officer loadout changes are documented in EQUIPMENT.md. These selections are profile information, not authoritative in-game equipment, award confirmation or DKP transactions.
+
+## Access and filtered audit
+
+See ACCESS.md for profiles, overrides, revisions and last-manager protection, and AUDIT.md for database-filtered historical audit queries. The generated Worker enforces permissions and atomic revocation guards. Shared profile item hovers are separate from officer catalog management. Narrow dependency routes include GET /api/raid-options (loot/capture/attendance readers), /api/ledger/characters (ledger writers), /api/attendance-requests/options (own eligible missing ticks), and /api/characters/:id/equipment/references (own profile writers). These do not expose raw attendance dumps or grant management rights.

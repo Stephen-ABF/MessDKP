@@ -1,4 +1,4 @@
-# Guild Desk 0.4.0
+# Guild Desk 0.5.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -20,9 +20,9 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.4
+## New in 0.5
 
-Source captures open individual tick attendance. Characters opens the registry first with a separate creation tab. Main profiles include linked loot awards and a member-maintained equipment overview, with saved item references and shared EQ-style hover details. Claim history identifies the assigning officer and supports audited detach corrections. Equipment selections do not change awards or DKP; only known cached item details are displayed.
+Overview opens your own main profile with equipment, DKP, attendance and loot. Only the approved owner may edit equipment. Attendance opportunities begin at the earliest evidenced character request or capture, independently of claim approval. Configurable Administrator, Officer, Member and custom access profiles control 16 areas with per-account overrides. Audit history supports actor, affected account, character, action, dates and search. EQ item stats are grouped for readability; weight and tribute are omitted from the compact display.
 
 ## DKP and loot behavior
 
@@ -34,6 +34,6 @@ EQResource links and explicitly sourced partial item references are retained. So
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.4.0 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.5.0 and release instructions.
 
-API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md. Features and limitations should be reviewed before production use.
+API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.

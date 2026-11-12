@@ -33,3 +33,7 @@ A complete item-data source still needs validation. Local names/IDs do not suppl
 ## EQ-style profile and hover views
 
 The hover and full details share a compact item pane: flags, slots, classes, races, normalized recorded stats, all known effects/focus, augment slots and expandable remaining source fields. Only validated source images appear. The partial Blood of Dhampyre reference includes Prismatic Ward VIII, Improved Dodge V and Corrupted Sylvan's Rot II from its EQResource item record; legacy copies of that known starter reference receive the same verified fields without a live request. Unknown items and failed refreshes do not inherit unrelated effects or claim complete metadata. Profile selections reuse this same pane.
+
+## Compact item sections
+
+The item pane separates AC/HP/mana/endurance, required/recommended levels, attributes with heroic values, saves, and regeneration/combat bonuses. Weight and tribute remain source facts but are omitted from the compact stat display. Effects/focus and augment information remain visible. Effect-specific spell-description hover is a future feature; this version does not claim a validated EQResource/Lucy spell catalog. Officer catalog management is separate from member profile/auction item details.

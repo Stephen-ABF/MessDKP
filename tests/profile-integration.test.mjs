@@ -16,7 +16,8 @@ test('bundled character profile shares authentication, equipment references, awa
   const history=await call('/api/claims','GET',undefined,officer),assignment=history.body.assignments.find(e=>e.currentlyAssigned);assert.equal(assignment.assignedBy,'Officer');
   const id=assignment.characterId,path='/api/characters/'+id+'/equipment';
   assert.equal((await call(path)).status,401);
-  assert.equal((await call('/api/items','GET',undefined,member)).status,200);
+  assert.equal((await call('/api/items','GET',undefined,member)).status,403);
+  assert.equal((await call(path+'/references','GET',undefined,member)).status,200);
   const profile=await call(path,'GET',undefined,member);assert.equal(profile.status,200);assert.equal(profile.body.slots.length,23);assert.equal(profile.body.canEdit,true);
   const selected=await call(path+'/ranged','PUT',{itemId:81773,expectedItemId:null},member);assert.equal(selected.status,200,JSON.stringify(selected.body));
   assert.equal(DB.raw.prepare('SELECT COUNT(*) n FROM ledger').get().n,0);

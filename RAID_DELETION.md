@@ -1,0 +1,13 @@
+# Delete an erroneous raid night
+
+Attendance > Open raid > Delete this raid night > Preview raid deletion. Review counts and each affected character's current/after DKP. A reason of3-1000 printable characters, exact typed raid name and explicit confirmation are required. Deletion is permanent in the app; keep a stopped-database backup for recovery.
+
+Attendance.write is required. Linked drafts/imports also require Loot preparation.write; linked auctions require Auction management.write; captures require Log companion.write. Default Officer/Administrator profiles supply these. Permission changes are checked against the current database at preview, commit and replay; an atomic guard checks all affected areas again. Empty/attendance-only raids require only Attendance.write. Members have no access.
+
+The transaction removes linked ticks/attendance/clones/correction requests, attendance earnings and award debits, boss drafts/items/auctions/bids/awards, import groups/links and unshared custody events, and capture sessions/messages. Shared source events and unrelated raid records remain. Devices are unbound from removed captures without revoking the computer. Accounts, registry characters, claims, unrelated manual adjustments, uploaded item data, settings and saved equipment references are retained. Gear whose deleted award was its only provenance displays as a reference. Completed wishes from deleted awards reopen.
+
+The deletion receipt and existing officer audit remain immutable, with actor, reason, raid identity, counts and per-character balance effects. This operation intentionally removes the raid transactions instead of leaving compensating entries in the current DKP total. Eligibility is recomputed from remaining captures/registry requests. No current winning/attendance rule is changed.
+
+Preview uses a raid revision advanced by linked data mutations. A changed preview rejects, numeric-range violations fail closed, and the entire batch rolls back on failure. Identical actor/key/signature retries return one receipt even if a concurrent retry finished first. Linked drafts with missing/different raid association are rejected for repair rather than partly deleting their source and leaving charges. Deletion does not infer which unrelated unlinked manual auction belonged to a raid.
+
+GET /api/raids/:id/delete-preview returns {preview:{raid,counts,dkpChanges,auditRetained}}. POST /api/raids/:id/delete accepts {expectedRevision,confirmName,reason,confirm:true,idempotencyKey}; same Origin and CSRF required. Old migrations0000-0013 stay unchanged;0014 adds the scoped operation/revision machinery.

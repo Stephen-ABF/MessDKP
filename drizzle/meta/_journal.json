@@ -99,6 +99,20 @@
       "when": 1794509395299,
       "tag": "0013_auction_management",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1794515838844,
+      "tag": "0014_raid_deletion",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1794515838848,
+      "tag": "0015_character_wishlist",
+      "breakpoints": true
     }
   ]
 }

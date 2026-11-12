@@ -1,4 +1,4 @@
-# Guild Desk 0.9.0
+# Guild Desk 0.10.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -20,7 +20,13 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.9
+## New in 0.10
+
+Officers can preview and permanently delete an erroneous raid with a reason, exact typed name and confirmation. The single atomic deletion removes linked attendance/ticks/clones, earned DKP and loot charges, requests, drafts/auctions and imported custody, while retaining officer audit and protecting other raids. Custom permissions for linked loot, auction and capture workspaces are enforced.
+
+Overview > Wish list organizes desired items by Underfoot, House of Thule or a custom expansion label. Search uses the uploaded item file; expansion is a planning list, not a claim about item origin. Active wishes on approved own characters highlight matching open auctions in gold. A later account win plus saving the item in a base equipment slot crosses the wish off permanently, across later gear changes. Want again begins a new generation needing a new win; stale retries cannot undo a later completion. Installed augment auto-fulfilment is not included. See WISHLIST.md and RAID_DELETION.md.
+
+## Previous archive and comparison (0.9)
 
 Guild-wide Loot history lists settled winners, prices, boss/raid provenance and filters for class, slot, recorded item type, winner and raid date. Auctions has Guild auctions, Won and Lost views. Personal outcomes show only your final active bids; Won includes recorded holding looters from retained imports, and Lost compares against the lowest winning bid with tie-break/ineligible labels. Live/cancelled auctions are excluded.
 
@@ -48,6 +54,6 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.9.0 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.10.0 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.

@@ -8,7 +8,7 @@ const read=name=>readFileSync(new URL('../worker/'+name,import.meta.url),'utf8')
 const origin='https://guild.test';
 function fixture({knownItems}={}){
  const handler=knownItems?createEquipmentApi({knownItems}):handleEquipmentApi;
- const DB=createD1([read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('auctions.sql'),read('equipment.sql')].join('\n'));
+ const DB=createD1([read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('auctions.sql'),read('auction-management.sql'),read('equipment.sql')].join('\n'));
  for(const [id,role]of[['officer','admin'],['owner','member'],['other','member']])DB.raw.prepare('INSERT INTO users VALUES(?,?,?,?,?,?,?)').run(id,id+'@fixture.test',id,'fixture','fixture',role,'2026-11-12');
  for(const[id,kind,owner,approved]of[['hero','main','owner','2026-11-12'],['alt','alt','owner','2026-11-12'],['unapproved','unclassified','owner',null]])DB.raw.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,?,?)').run(id,id,id,85,'Cleric','Raider',kind,owner,approved);
  for(const id of[1,2,3])DB.raw.prepare('INSERT INTO item_references(item_id,name,source_url,retrieved_at,verification_method,metadata_status) VALUES(?,?,?,?,?,?)').run(id,'Fixture Item '+id,'https://items.eqresource.com/items.php?id='+id,'2026-11-12','fixture','unresolved');

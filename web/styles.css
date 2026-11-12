@@ -429,6 +429,19 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .comparison-deltas { margin-top:20px; }
 .comparison-deltas > p { margin:10px 0 18px; }
 .loot-row-inclusion { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 0; margin-top:10px; border-top:1px solid var(--line); }
+.raid-delete-panel { border-color:#a94f59; }
+.raid-delete-panel > summary { color:#ffb9c0; font-weight:700; cursor:pointer; }
+.raid-delete-review { display:grid; gap:16px; }
+.raid-delete-review .danger { border-color:#a94f59; color:#ffb9c0; }
+.wishlist-expansion,.wishlist-search { display:flex; align-items:end; flex-wrap:wrap; gap:16px; margin:20px 0; }
+.wishlist-expansion label,.wishlist-search label { flex:1 1 260px; }
+.wishlist-expansion .field-error,.wishlist-search .field-error { flex-basis:100%; }
+.auction-row.wish-listed { border:1px solid #d7b45d; border-left:5px solid #d7b45d; background:linear-gradient(115deg,#352d1d,#202733); padding:20px; border-radius:10px; }
+.wish-listed .item-link,.wish-tag { color:#ffe3a0; }
+.wish-tag { border:1px solid #d7b45d; background:#3a3019; font-weight:700; }
+.wish-completed .item-link span { text-decoration:line-through; opacity:.7; }
+.wish-completed .tag { display:block; width:max-content; margin-top:8px; }
+.wish-completed form + form { margin-top:10px; }
 @media(max-width:760px) {
  .item-comparison-grid { grid-template-columns:minmax(0,1fr); }
  .comparison-item,.officer-action-card { padding:16px; }

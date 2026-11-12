@@ -8,8 +8,8 @@ const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Contr
 const sql=(db,query,...params)=>db.prepare(query).bind(...params);
 const validItem=value=>value===null||Number.isSafeInteger(value)&&value>0;
 const characterQuery="SELECT c.id,c.name,c.class_name AS className,c.kind,c.owner_id AS ownerId,CASE WHEN c.owner_id=u.id AND c.kind IN('main','alt') AND c.approved_at IS NOT NULL THEN 1 ELSE 0 END AS can_edit FROM characters c JOIN users u ON u.id=? WHERE c.id=?";
-const slotQuery='SELECT e.slot_key AS slotKey,e.item_id AS itemId,r.name AS itemName,e.source,e.updated_at AS updatedAt,e.operation_id AS operationId FROM character_equipment e LEFT JOIN item_references r ON r.item_id=e.item_id WHERE e.character_id=?';
-function slotShape(key,row){const definition=EQUIPMENT_SLOTS.find(s=>s.key===key);return {...definition,itemId:row?.itemId??null,itemName:row?.itemId?(row.itemName||'EQ Item '+row.itemId):null,source:row?.itemId?row.source:null,updatedAt:row?.updatedAt??null};}
+const slotQuery='SELECT e.slot_key AS slotKey,e.item_id AS itemId,r.name AS itemName,r.advanced_loot AS advancedLoot,e.source,e.updated_at AS updatedAt,e.operation_id AS operationId FROM character_equipment e LEFT JOIN item_references r ON r.item_id=e.item_id WHERE e.character_id=?';
+function slotShape(key,row){const definition=EQUIPMENT_SLOTS.find(s=>s.key===key);return {...definition,itemId:row?.itemId??null,itemName:row?.itemId?(row.itemName||'EQ Item '+row.itemId):null,source:row?.itemId?row.source:null,updatedAt:row?.updatedAt??null,...(row?.advancedLoot?{advancedLoot:row.advancedLoot}:{})};}
 async function input(request){
  if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail(415,'content_type','Send JSON equipment data.');
  const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;

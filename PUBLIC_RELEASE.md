@@ -1,4 +1,6 @@
-# Guild Desk 0.7.0
+# Guild Desk 0.7.1
+
+This patch adds explicitly approved EQResource item icons to equipped slots, hover panes and item details. Icon identity comes from the uploaded item file or its saved matching advanced-loot reference. Only the exact HTTPS numeric PNG image path is accepted remotely. Failed gear images disappear while their item names and detail buttons remain usable. Item stats, ownership, attendance and DKP behavior are unchanged; no migration is needed for this patch. The 0.7.0 feature baseline below is retained.
 
 This build cleans up item hover/details and adds manual raid-night imports from the existing Python loot tracker. Item panes hide zero-valued stats/levels and technical effect fields, retain augment slots, and show named Click, Worn and Focus effects. Missing names resolve through a separate persistent spell-name reference; nonempty names in the uploaded item file always take priority. Item statistics remain sourced only from uploaded EQItems/SODEQ files.
 
@@ -22,7 +24,7 @@ Custom attendance-only profiles can open the raid workspace without needing Over
 
 The separate names-only reference is linked by the Raidloot parser maintainer. Its available file is dated July 12, 2023; that provenance is shown honestly. Missing newer names remain unknown, and current uploaded names win over older reference labels. Names are cached atomically; downloads are bounded, coalesced and fail softly. See SPELL_NAMES.md.
 
-Online icon fetching is not enabled. This build preserves the existing source restrictions and does not manufacture item pictures. Item data continues to come from uploaded files and EQResource remains manual hyperlinks. Artwork needs a separately approved image source or local client icon files.
+The owner explicitly approved EQResource icons only on November 12, 2026. The browser loads images from the verified numeric itemimages PNG path with no referrer; unavailable images do not block item details. Image availability depends on EQResource and the user's connection. No image dataset is bundled or mirrored, and no item statistics are fetched from the site. EQResource item pages remain manual hyperlinks.
 
 ## Install and preserve data
 

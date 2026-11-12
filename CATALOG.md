@@ -38,7 +38,7 @@ Class, race and slot masks follow the provider's search controls, checked agains
 
 Normalized stats include AC, resources, attributes, heroics, saves, regeneration, attack, healing, spell damage and other supplied fields. Slot flags include Power Source 2,097,152 and Ammo 4,194,304. The provider race bit 65,536 is retained as Shroud rather than replaced with an assumed playable-race restriction. All source fields remain visible even if not yet normalized.
 
-Effects retain kind, spell ID, supplied name and available level/type fields; missing names display as Spell #ID. Six augmentation slots retain type, visibility and unknown values. Source timestamps are distinct from upload time. An icon ID is data, not an image: no remote image URL is generated. The main dump does not contain a complete spell-description dataset, so no effect behavior is fabricated and metadata completeness remains false.
+Effects retain kind, spell ID, supplied name and available level/type fields; the interface shows friendly Click/Worn/Focus names and hides unresolved numeric labels and technical effect fields. A separate names-only reference can resolve missing names; uploaded names take priority. Six augmentation slots retain type, visibility and unknown values. Source timestamps are distinct from upload time. Following the owner's icons-only approval, the interface uses uploaded icon IDs to load PNG images from EQResource's verified numeric itemimages path. Item statistics are still file-only, and missing images leave the item name usable. The main dump does not contain a complete spell-description dataset, so no effect behavior is fabricated and metadata completeness remains false.
 
 ## Runtime boundary
 

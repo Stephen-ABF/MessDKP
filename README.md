@@ -1,4 +1,4 @@
-# Guild Desk 0.7.0
+# Guild Desk 0.7.1
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -20,6 +20,10 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
+## New in 0.7.1
+
+Equipment slots and item hover/details show approved EQResource icons using the uploaded icon identity. Only the verified numeric HTTPS PNG path is accepted remotely. Missing images preserve the item name and details. Item statistics remain file-only; no image dataset is bundled and no item pages are scraped.
+
 ## New in 0.7
 
 Item panes hide zero-valued stats and technical effect fields, display friendly Click/Worn/Focus names, and preserve augment slots. Missing spell names use a separate bounded persistent names-only reference; uploaded effect names always take priority. Item stats still come from uploaded files.
@@ -34,10 +38,10 @@ Attendance uses each committed data dump as a tick. The mains report groups by c
 
 For native loot capture, run companion/Start-Companion.cmd to open the local graphical window. Choose the EverQuest log once. In Guild Desk, use Connect companion, open its one-time connection link and confirm the displayed site in the local window. Create each boss capture with the saved computer selected, then wait for Watching before linking loot. Prepare the reviewed boss draft and publish its auctions separately. Advanced-Manual-Companion.cmd retains the older troubleshooting console. Keep companion/state private and preserve it during upgrades. See companion/README.md and CAPTURES.md for recovery.
 
-Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on your own character Overview to preview and import an EverQuest inventory export. Selected item details come from the uploaded catalog; EQResource is only a manual hyperlink. See CATALOG.md and INVENTORY.md. The full game dataset is not redistributed in this source snapshot.
+Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on your own character Overview to preview and import an EverQuest inventory export. Selected item details come from the uploaded catalog; EQResource item pages remain manual hyperlinks; approved icon images load separately from its numeric itemimages PNG path. Item statistics are never fetched from EQResource. See CATALOG.md and INVENTORY.md. The full game dataset is not redistributed in this source snapshot.
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.7.0 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.7.1 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.

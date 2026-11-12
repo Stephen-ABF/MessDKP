@@ -4,6 +4,8 @@ The Python tracker can continue recording who picked up each corpse item. Guild 
 
 ## Normal workflow
 
+Windows Python setup: install the Python Install Manager from https://www.python.org/downloads/, open a new PowerShell window and run `py install default`. Then run `py -m tkinter`; a small demo window confirms Tcl/Tk works. Close it before launching the tracker. Python 3.8 is the minimum supported version, not a requirement to install that old release. Tkinter is provided by the normal official Windows runtime rather than a separate pip package. See https://docs.python.org/3/using/windows.html and https://docs.python.org/3/library/tkinter.html.
+
 1. With Python 3.8 or later and Tk installed, launch `companion/Start-Python-Tracker-Guild-Desk.cmd`. On first run choose your existing original tracker `.py` file, rather than its settings or the export helper. Its location is remembered privately for later launches. Keep the original script and settings on your computer; they are not included in Guild Desk's public source. To select a different original script, run `.\Start-Python-Tracker-Guild-Desk.cmd --choose` from a terminal in the `companion` folder.
 2. Monitor the raid and check the rows to export. Use **Export selected loot** or the **Guild Desk** menu, confirm the raid date, and save a structured JSON selection. The existing OpenDKP and Excel exports keep their original behavior.
 3. In Guild Desk, open **Officer workspace > Boss loot preparation > Raid-night import**, choose the exported JSON file and confirm the same raid date. Select an existing raid if the resulting drafts should be linked to it. Review the date/time range, source groups, item quantities and holding looters.

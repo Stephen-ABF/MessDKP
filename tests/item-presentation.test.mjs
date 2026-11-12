@@ -5,10 +5,11 @@ import {readFileSync} from 'node:fs';
 
 const source=readFileSync(new URL('../web/app.js',import.meta.url),'utf8').replace(/\nstart\(\);\s*$/,'\n');
 function presentation(){
+ const listeners={};
  const element=()=>({addEventListener(){},querySelectorAll(){return[];},querySelector(){return element();}});
- const context=vm.createContext({document:{querySelector:element,querySelectorAll(){return[];},addEventListener(){}},window:{location:{origin:'https://guild.test'},addEventListener(){}},URL,URLSearchParams,Date,Map,Set,WeakMap,crypto,setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){}});
+ const context=vm.createContext({document:{querySelector:element,querySelectorAll(){return[];},addEventListener(name,handler){listeners[name]=handler;}},window:{location:{origin:'https://guild.test'},addEventListener(){}},URL,URLSearchParams,Date,Map,Set,WeakMap,crypto,setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){}});
  vm.runInContext(source,context,{filename:'guild-desk-presentation.js'});
- return vm.runInContext('({itemMetadata,itemStatSections,itemEffects,safeItemImage})',context);
+ return {...vm.runInContext('({itemMetadata,itemStatSections,itemEffects,safeItemImage,itemImage,itemTrigger})',context),listeners};
 }
 const item=(overrides={})=>({itemId:900001,name:'Fixture equipment',classes:['CLR'],races:['ALL'],slots:['HEAD'],flags:['LORE','NO TRADE'],stats:{ac:20},metadataComplete:false,sourceUrl:'https://items.eqresource.com/items.php?id=900001',details:{effects:[],effectRecords:[],augments:['Type 7'],fields:[]},...overrides});
 
@@ -52,9 +53,30 @@ test('an all-zero item has no empty numeric sections and retains its augment slo
  });
 
 
-test('resolved spell names render without their numeric IDs and image URLs remain local until an icon provider is approved',()=>{
+test('resolved spell names render without numeric IDs and nonapproved image paths remain blocked',()=>{
  const view=presentation(),html=view.itemMetadata(item({details:{effectRecords:[{kind:'worn',spellId:3660,name:'Faerune',nameSource:'Fixture spell-name cache'}],fields:[],augments:[]}}),true);
  assert.match(html,/Worn:<\/span> Faerune/);assert.doesNotMatch(html,/3660|Spell #/);
  assert.equal(view.safeItemImage('/assets/item-icons/100.png'),'https://guild.test/assets/item-icons/100.png');
  for(const url of ['https://items.eqresource.com/icons/100.png','https://evil.test/100.png','javascript:alert(1)','data:image/png;base64,AAAA','https://name:password@guild.test/assets/item.png'])assert.equal(view.safeItemImage(url),null);
+});
+
+test('only exact approved EQResource numeric PNG icon paths may load remotely',()=>{
+ const view=presentation();
+ assert.equal(view.safeItemImage('https://items.eqresource.com/itemimages/2753.png'),'https://items.eqresource.com/itemimages/2753.png');
+ for(const url of ['http://items.eqresource.com/itemimages/2753.png','https://items.eqresource.com.evil.test/itemimages/2753.png','https://eqresource.com/itemimages/2753.png','https://items.eqresource.com/itemimages/2753.svg','https://items.eqresource.com/itemimages/blank.png','https://items.eqresource.com/itemimages/0.png','https://items.eqresource.com/itemimages/01.png','https://items.eqresource.com/itemimages/2753.png?track=1','https://items.eqresource.com/itemimages/2753.png#fragment','https://user:pass@items.eqresource.com/itemimages/2753.png'])assert.equal(view.safeItemImage(url),null,url);
+});
+
+test('icon IDs come from uploaded metadata or the matching saved advanced-loot reference without changing stats',()=>{
+ const view=presentation(),fixture=item({iconId:2753,stats:{ac:90},advancedLoot:'900001^9999^Fixture equipment'}),before=JSON.stringify(fixture);
+ assert.equal(view.itemImage(fixture),'https://items.eqresource.com/itemimages/2753.png');
+ assert.match(view.itemMetadata(fixture,true),/itemimages\/2753\.png/);assert.equal(JSON.stringify(fixture),before);
+ assert.equal(view.itemImage(item({advancedLoot:'900001^2753^Fixture equipment'})),'https://items.eqresource.com/itemimages/2753.png');
+ for(const extra of [{advancedLoot:'900002^2753^Other item'},{iconId:-1},{iconId:0},{iconId:1.5},{iconId:10000000},{iconId:'2753'},{advancedLoot:'900001^javascript:bad^Fixture'}])assert.equal(view.itemImage(item(extra)),null);
+});
+
+test('equipment icon stays inside the existing accessible item detail button and unavailable art leaves the name',()=>{
+ const view=presentation(),html=view.itemTrigger(900001,'Fixture <helm>',item({advancedLoot:'900001^2753^Fixture equipment'}));
+ assert.match(html,/data-action="item-detail"/);assert.match(html,/data-item-preview="900001"/);assert.match(html,/class="eq-item-icon gear-item-icon"/);assert.match(html,/alt=""/);assert.match(html,/referrerpolicy="no-referrer"/);assert.match(html,/Fixture &lt;helm&gt;/);
+ let removed=false;view.listeners.error({target:{matches:()=>true,classList:{contains:name=>name==='gear-item-icon'},remove(){removed=true;}}});assert.equal(removed,true);
+ assert.doesNotMatch(view.itemTrigger(900001,'No uploaded icon'),/<img/);
 });

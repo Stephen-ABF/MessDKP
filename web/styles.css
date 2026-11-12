@@ -399,3 +399,5 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .tick-clone-origin .item-facts { grid-template-columns: 1fr; }
 
 .tick-clone-origin dd > .muted { display:block; margin-top:.3rem; }
+.gear-slot .has-item-icon { display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
+.gear-slot .gear-item-icon { width:40px; height:40px; flex:0 0 40px; object-fit:contain; }

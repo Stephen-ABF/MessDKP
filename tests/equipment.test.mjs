@@ -98,6 +98,14 @@ test('officers can edit their own approved character but cannot use a claimed ro
  assert.equal((await h.select(2,1,{user:'officer',context:forged})).status,200);assert.equal(h.count('audit'),2);
 }finally{h.close();}});
 
+test('saved uploaded icon identity is exposed with equipment without changing ledger or ownership',async()=>{const h=fixture();try{
+ assert.equal((await h.select(1)).status,200);
+ h.DB.raw.prepare('UPDATE item_references SET advanced_loot=? WHERE item_id=1').run('1^2753^Fixture Item 1');
+ const before=h.DB.raw.prepare('SELECT * FROM ledger').all(),audit=h.count('audit');
+ const result=await h.call();assert.equal(result.status,200);assert.equal(result.body.slots.find(s=>s.key==='head').advancedLoot,'1^2753^Fixture Item 1');
+ assert.deepEqual(h.DB.raw.prepare('SELECT * FROM ledger').all(),before);assert.equal(h.count('audit'),audit);assert.equal(result.body.canEdit,true);
+}finally{h.close();}});
+
 test('profile write access is required as well as current approved ownership',async()=>{const h=fixture();try{
  for(const access of[{permissions:{overview:2,mains:2}},{permissions:{characters:3,claims:3}},null]){
   const context={access};assert.equal((await h.call({context})).body.canEdit,false);assert.equal((await h.select(1,null,{context})).status,403);

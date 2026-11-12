@@ -468,7 +468,7 @@ function equipmentPanel(data) {
   data = {...data,canEdit:canEditEquipment(data)};
   const character = data.character;
   const classCode = classChoices.find(([,name]) => name === character.className)?.[0] || 'EQ';
-  return `<section class="panel equipment-panel"><div class="panel-head"><div><h2>Character equipment</h2><p>${data.canEdit ? 'Select a slot to add confirmed loot or a saved item reference.' : 'Equipment references recorded for this character.'}</p></div><span class="tag">${data.slots.filter(slot => slot.itemId !== null).length} / ${data.slots.length} slots</span></div><p class="small muted">A profile reference records your gear; it does not award loot or change DKP. Review class and slot requirements in item details; the partial cache does not enforce them. No total stats are inferred.</p><div class="equipment-board" aria-label="Equipment for ${escape(character.name)}"><div class="equipment-identity"><div class="class-sigil" aria-hidden="true">${escape(classCode)}</div><strong>${escape(character.name)}</strong><span>${escape(character.className)}</span><small>Character overview</small></div>${data.slots.map(slot => `<div class="gear-slot gear-${escape(slot.key)}"><span class="gear-label">${escape(slot.label)}</span>${slot.itemId !== null ? `${itemTrigger(slot.itemId, slot.itemName || `Item ${slot.itemId}`)}${installedAugments(slot.augments,true)}<span class="gear-source">${slot.source === 'award' ? 'Confirmed loot won' : 'Reference added by member'}</span>${data.canEdit ? `<button type="button" class="gear-change" data-action="gear-open" data-slot="${escape(slot.key)}" aria-label="Change ${escape(slot.label)} equipment">Change</button>` : ''}` : data.canEdit ? `<button type="button" class="gear-empty" data-action="gear-open" data-slot="${escape(slot.key)}" aria-label="Select an item for ${escape(slot.label)}">+<span>Choose item</span></button>` : '<span class="gear-empty-readonly">Empty slot</span>'}</div>`).join('')}</div><div id="equipment-picker" hidden></div></section>`;
+  return `<section class="panel equipment-panel"><div class="panel-head"><div><h2>Character equipment</h2><p>${data.canEdit ? 'Select a slot to add confirmed loot or a saved item reference.' : 'Equipment references recorded for this character.'}</p></div><span class="tag">${data.slots.filter(slot => slot.itemId !== null).length} / ${data.slots.length} slots</span></div><p class="small muted">A profile reference records your gear; it does not award loot or change DKP. Review class and slot requirements in item details; the partial cache does not enforce them. No total stats are inferred.</p><div class="equipment-board" aria-label="Equipment for ${escape(character.name)}"><div class="equipment-identity"><div class="class-sigil" aria-hidden="true">${escape(classCode)}</div><strong>${escape(character.name)}</strong><span>${escape(character.className)}</span><small>Character overview</small></div>${data.slots.map(slot => `<div class="gear-slot gear-${escape(slot.key)}"><span class="gear-label">${escape(slot.label)}</span>${slot.itemId !== null ? `${itemTrigger(slot.itemId, slot.itemName || `Item ${slot.itemId}`, slot)}${installedAugments(slot.augments,true)}<span class="gear-source">${slot.source === 'award' ? 'Confirmed loot won' : 'Reference added by member'}</span>${data.canEdit ? `<button type="button" class="gear-change" data-action="gear-open" data-slot="${escape(slot.key)}" aria-label="Change ${escape(slot.label)} equipment">Change</button>` : ''}` : data.canEdit ? `<button type="button" class="gear-empty" data-action="gear-open" data-slot="${escape(slot.key)}" aria-label="Select an item for ${escape(slot.label)}">+<span>Choose item</span></button>` : '<span class="gear-empty-readonly">Empty slot</span>'}</div>`).join('')}</div><div id="equipment-picker" hidden></div></section>`;
 }
 async function renderEquipmentPicker(focusSearch = false) {
   const picker = state.gearPicker, equipment = state.equipment, generation = state.generation;
@@ -512,12 +512,20 @@ async function saveEquipmentChoice(itemId, button) {
 function mainLootSection(loot) {
   return `<section class="panel"><div class="panel-head"><div><h2>Loot won</h2><p>Winning bids and award charges from settled auctions. Open sealed bids are not listed.</p></div><span class="tag">${escape(number(loot.length))} awards</span></div>${loot.length ? table(['Item', 'Winning bid', 'DKP charged', 'Award status', 'Date'], loot.map(entry => `<tr><td>${itemTrigger(entry.itemId, entry.itemName)}</td><td class="amount">${escape(number(entry.winningBid))} DKP</td><td class="amount">${entry.status === 'confirmed' ? `${escape(number(entry.price))} DKP` : `<span class="muted">Pending confirmation<br>${escape(number(entry.price))} DKP proposed</span>`}</td><td><span class="tag">${escape(entry.status)}</span></td><td>${escape(date(entry.confirmedAt || entry.closedAt))}</td></tr>`)) : empty('No loot awards yet', 'Won items will appear here after an auction settles. Click an item to see its details, guild appearances and previous bids.')}</section>`;
 }
-function itemTrigger(itemId, label) {
-  return `<button type="button" class="item-link" data-action="item-detail" data-item="${escape(itemId)}" data-item-preview="${escape(itemId)}" aria-haspopup="dialog">${escape(label)}</button>`;
+function itemTrigger(itemId, label, item = null) {
+  const image = itemImage(item);
+  return `<button type="button" class="item-link${image ? ' has-item-icon' : ''}" data-action="item-detail" data-item="${escape(itemId)}" data-item-preview="${escape(itemId)}" aria-haspopup="dialog">${image ? `<img class="eq-item-icon gear-item-icon" src="${escape(image)}" alt="" width="40" height="40" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}<span>${escape(label)}</span></button>`;
 }
 function safeItemImage(value) {
   if(typeof value!=='string'||!value)return null;
-  try {const url=new URL(value,window.location.origin);return ['http:','https:'].includes(url.protocol)&&url.origin===window.location.origin&&!url.username&&!url.password&&/\.(?:png|jpe?g|gif|webp|avif|svg)$/i.test(url.pathname)?url.href:null;}catch{return null;}
+  try {const url=new URL(value,window.location.origin);if(url.username||url.password)return null;const local=['http:','https:'].includes(url.protocol)&&url.origin===window.location.origin&&/\.(?:png|jpe?g|gif|webp|avif|svg)$/i.test(url.pathname);const approved=url.origin==='https://items.eqresource.com'&&/^\/itemimages\/[1-9]\d{0,6}\.png$/.test(url.pathname)&&!url.search&&!url.hash;return local||approved?url.href:null;}catch{return null;}
+}
+function itemImage(item) {
+  if(!item||typeof item!=='object')return null;
+  let iconId=item.iconId;
+  if(iconId===null||iconId===undefined){const match=typeof item.advancedLoot==='string'?/^([1-9]\d*)\^([1-9]\d*)\^[\s\S]+$/.exec(item.advancedLoot):null;if(match&&Number(match[1])===Number(item.itemId))iconId=Number(match[2]);}
+  if(Number.isSafeInteger(iconId)&&iconId>0&&iconId<=9999999)return 'https://items.eqresource.com/itemimages/'+iconId+'.png';
+  return safeItemImage(item.iconUrl);
 }
 function itemValue(value) {
   if (value === null || value === undefined) return 'Unknown';
@@ -560,7 +568,7 @@ function itemStatSections(stats) {
   return primary+levels+attributes+resistances+combat+(extra.length?`<section class="eq-stat-section"><h4>Other recorded stats</h4><dl class="eq-stats">${extra.map(([key,value])=>`<div><dt>${escape(key.replace(/([a-z])([A-Z])/g,'$1 $2'))}:</dt><dd>${escape(itemValue(value))}</dd></div>`).join('')}</dl></section>`:'');
 }
 function itemMetadata(item, compact = false) {
-  const image = safeItemImage(item.iconUrl), details = item.details || {};
+  const image = itemImage(item), details = item.details || {};
   const fields = Array.isArray(details.fields) ? details.fields : [];
   const stats = item.stats && typeof item.stats === 'object' ? Object.entries(item.stats) : [];
   const effects = itemEffects(details);
@@ -784,7 +792,8 @@ document.addEventListener('focusin', event => { const anchor = event.target.clos
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeItemPreview(); });
 document.addEventListener('error', event => {
   if (!event.target.matches?.('img.eq-item-icon')) return;
-  const fallback = document.createElement('div'); fallback.className = 'item-image-missing'; fallback.textContent = 'Source image unavailable'; event.target.replaceWith(fallback);
+  if (event.target.classList.contains('gear-item-icon')) { event.target.remove(); return; }
+  const fallback = document.createElement('span'); fallback.className = 'item-image-missing'; fallback.textContent = 'Source image unavailable'; event.target.replaceWith(fallback);
 }, true);
 window.addEventListener('resize', closeItemPreview);
 document.addEventListener('scroll', event => { if (!event.target.closest?.('#item-preview')) closeItemPreview(); }, true);

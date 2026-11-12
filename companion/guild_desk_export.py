@@ -204,6 +204,17 @@ def export_to_file(rows, raid_date, destination, state_path, scope, selected_row
     protected.update(Path(path).resolve() for path in protected_paths)
     if destination in protected:
         raise ValueError("Choose a new export file, not the tracker or its settings.")
+    return _persist_export(rows, raid_date, state_path, scope, selected_rows, lambda payload: _atomic_json(destination, payload))
+
+
+def export_to_clipboard(rows, raid_date, copy_text, state_path, scope, selected_rows=None):
+    """Copy the same durable structured export without creating a loot file."""
+    if not callable(copy_text):
+        raise ValueError("Clipboard writer is required.")
+    return _persist_export(rows, raid_date, Path(state_path).resolve(), scope, selected_rows, lambda payload: copy_text(_json_bytes(payload).decode("utf-8")))
+
+
+def _persist_export(rows, raid_date, state_path, scope, selected_rows, write_output):
     state_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = state_path.with_name(state_path.name + ".lock")
     try:
@@ -226,7 +237,7 @@ def export_to_file(rows, raid_date, destination, state_path, scope, selected_row
         _atomic_json(state_path, next_state)
         for row, binding in bindings:
             row[ROW_ID_KEY] = binding
-        _atomic_json(destination, payload)
+        write_output(payload)
         return payload
     finally:
         lock_path.unlink()
@@ -240,14 +251,20 @@ def create_wrapped_tracker_class(original, state_dir, tracker_path):
     class GuildDeskTracker(original.EQLootTracker):
         def __init__(self):
             super().__init__()
+            original_widgets = list(self.winfo_children())
+            self.title(self.title() + " - Guild Desk")
             bar = tk.Menu(self)
             menu = tk.Menu(bar, tearoff=0)
-            menu.add_command(label="Export selected loot...", command=self._export_guild_desk)
+            menu.add_command(label="Copy selected loot as JSON", command=lambda: self._export_guild_desk("copy"))
+            menu.add_command(label="Save selected loot as JSON...", command=self._export_guild_desk)
             bar.add_cascade(label="Guild Desk", menu=menu)
             self.config(menu=bar)
             panel = tk.Frame(self)
-            panel.pack(fill="x")
-            tk.Button(panel, text="Export selected loot to Guild Desk", command=self._export_guild_desk).pack(side="left", padx=8, pady=5)
+            placement = {"before": original_widgets[0]} if original_widgets else {}
+            panel.pack(side="top", fill="x", **placement)
+            tk.Label(panel, text="Guild Desk loot export:").pack(side="left", padx=8)
+            tk.Button(panel, text="Copy JSON", command=lambda: self._export_guild_desk("copy")).pack(side="left", padx=8, pady=5)
+            tk.Button(panel, text="Save JSON", command=self._export_guild_desk).pack(side="left", padx=8, pady=5)
 
         def _add_loot_row(self, looter, qty, item, source, source_tag="new"):
             before = len(self.loot_rows)
@@ -266,7 +283,7 @@ def create_wrapped_tracker_class(original, state_dir, tracker_path):
                     row.pop("_guild_desk_new_event", None)
             return result
 
-        def _export_guild_desk(self):
+        def _export_guild_desk(self, mode="save"):
             selected = self._selected_rows()
             if not selected:
                 messagebox.showinfo("Nothing selected", "Check one or more loot rows first.", parent=self)
@@ -275,17 +292,29 @@ def create_wrapped_tracker_class(original, state_dir, tracker_path):
             if raid_date is None:
                 return
             try:
+                if mode not in ("copy", "save"):
+                    raise ValueError("Choose Copy JSON or Save JSON.")
                 validate_raid_date(raid_date)
-                destination = filedialog.asksaveasfilename(parent=self, title="Save Guild Desk loot events", defaultextension=".json", initialfile="guild-desk-loot-" + raid_date + ".json", filetypes=[("Guild Desk loot JSON", "*.json")])
-                if not destination:
-                    return
+                destination = None
+                if mode == "save":
+                    destination = filedialog.asksaveasfilename(parent=self, title="Save Guild Desk loot events", defaultextension=".json", initialfile="guild-desk-loot-" + raid_date + ".json", filetypes=[("Guild Desk loot JSON", "*.json")])
+                    if not destination:
+                        return
                 log_path = self.log_path_var.get().strip() if hasattr(self, "log_path_var") else ""
                 scope = [os.path.normcase(str(Path(tracker_path).resolve())), os.path.normcase(os.path.abspath(log_path)) if log_path else "no-log-selected"]
                 protected = [tracker_path, Path(__file__), Path(tracker_path).parent / "eq_loot_config.json", Path(state_dir) / "python-tracker-settings.json"]
                 if log_path:
                     protected.append(Path(log_path))
-                payload = export_to_file(self.loot_rows, raid_date, destination, Path(state_dir) / "python-tracker-identities.json", scope, selected, protected_paths=protected)
-                messagebox.showinfo("Saved for Guild Desk", "Saved {} loot events. Import this JSON in Guild Desk > Boss loot preparation > Raid-night import. Tracker export status and delivery status were not changed.".format(len(payload["events"])), parent=self)
+                if mode == "copy":
+                    def copy_text(value):
+                        self.clipboard_clear()
+                        self.clipboard_append(value)
+                        self.update_idletasks()
+                    payload = export_to_clipboard(self.loot_rows, raid_date, copy_text, Path(state_dir) / "python-tracker-identities.json", scope, selected)
+                    messagebox.showinfo("Copied for Guild Desk", "Copied {} loot events. Paste the JSON in Guild Desk > Boss loot preparation > Raid-night import. Copying does not publish auctions or mark loot delivered.".format(len(payload["events"])), parent=self)
+                else:
+                    payload = export_to_file(self.loot_rows, raid_date, destination, Path(state_dir) / "python-tracker-identities.json", scope, selected, protected_paths=protected)
+                    messagebox.showinfo("Saved for Guild Desk", "Saved {} loot events. Import this JSON in Guild Desk > Boss loot preparation > Raid-night import. Tracker export status and delivery status were not changed.".format(len(payload["events"])), parent=self)
             except Exception as error:
                 messagebox.showerror("Guild Desk export failed", str(error), parent=self)
 

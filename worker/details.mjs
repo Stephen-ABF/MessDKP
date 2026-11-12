@@ -17,7 +17,7 @@ export async function handleDetailsApi(request,env,auth={}){
   }
   const results=await env.DB.batch([
    env.DB.prepare("SELECT id FROM characters WHERE id=? AND kind='main' AND owner_id IS NOT NULL").bind(lootRoute[1]),
-   env.DB.prepare("SELECT a.id AS auctionId,a.item_id AS itemId,a.item_name AS itemName,a.source_url AS sourceUrl,w.winning_bid AS winningBid,w.price,w.status,w.confirmed_at_ms AS confirmedAt,a.closed_at_ms AS closedAt FROM auction_awards w JOIN auctions a ON a.id=w.auction_id WHERE w.character_id=? AND a.status='closed' AND a.closes_at_ms<=? ORDER BY COALESCE(w.confirmed_at_ms,a.closed_at_ms) DESC,a.id").bind(lootRoute[1],Date.now())
+   env.DB.prepare("SELECT a.id AS auctionId,a.item_id AS itemId,a.item_name AS itemName,a.source_url AS sourceUrl,w.winning_bid AS winningBid,w.price,w.status,w.confirmed_at_ms AS confirmedAt,a.closed_at_ms AS closedAt FROM auction_awards w JOIN auctions a ON a.id=w.auction_id WHERE w.character_id=? AND a.status='closed' AND a.cancelled_at_ms IS NULL AND a.closes_at_ms<=? ORDER BY COALESCE(w.confirmed_at_ms,a.closed_at_ms) DESC,a.id").bind(lootRoute[1],Date.now())
   ]);
   if(!results[0].results.length)return detailsJson({error:'This character is not an approved main.',code:'main_not_found'},404);
   return detailsJson({characterId:lootRoute[1],loot:results[1].results.map(row=>({...row,confirmedAt:row.confirmedAt===null?null:new Date(row.confirmedAt).toISOString(),closedAt:row.closedAt===null?null:new Date(row.closedAt).toISOString()}))});

@@ -154,13 +154,13 @@ export function createLootApi({searchItemsByName,fetchItemDetails,cacheItemDetai
  async function history(db,itemId,limit){
   const totals=await sql(db,'SELECT COUNT(*) AS n,COALESCE(SUM(quantity),0) AS quantity FROM auctions WHERE item_id=?',itemId).first();
   const rows=await all(sql(db,'SELECT a.*,d.id AS draft_id,d.boss_name,d.raid_id,r.name AS raid_name FROM auctions a LEFT JOIN loot_draft_items i ON i.auction_id=a.id LEFT JOIN loot_drafts d ON d.id=i.draft_id AND d.status=\'published\' LEFT JOIN raids r ON r.id=d.raid_id WHERE a.item_id=? ORDER BY a.published_at_ms DESC,a.id LIMIT ?',itemId,limit));
-  const closedIds=JSON.stringify(rows.filter(a=>a.status==='closed').map(a=>a.id));
+  const closedIds=JSON.stringify(rows.filter(a=>a.status==='closed'&&a.cancelled_at_ms==null).map(a=>a.id));
   const [allBids,allAwards]=await Promise.all([
    all(sql(db,"SELECT b.auction_id,c.name AS characterName,u.name AS userName,b.amount,b.eligible_at_close AS eligible FROM auction_bids b JOIN auctions a ON a.id=b.auction_id AND a.status='closed' JOIN characters c ON c.id=b.character_id JOIN users u ON u.id=b.user_id WHERE b.auction_id IN(SELECT value FROM json_each(?)) AND b.active=1 ORDER BY b.amount DESC,b.priority_at_ms,b.priority_sequence",closedIds)),
    all(sql(db,"SELECT w.auction_id,c.name AS characterName,u.name AS userName,w.price,w.status FROM auction_awards w JOIN auctions a ON a.id=w.auction_id AND a.status='closed' JOIN characters c ON c.id=w.character_id JOIN users u ON u.id=w.user_id WHERE w.auction_id IN(SELECT value FROM json_each(?)) ORDER BY w.award_rank",closedIds))
   ]);
-  const auctions=[];for(const a of rows){const closed=a.status==='closed';const bids=closed?allBids.filter(b=>b.auction_id===a.id).map(({auction_id,...b})=>({...b,eligible:Boolean(b.eligible)})):null,awards=closed?allAwards.filter(w=>w.auction_id===a.id).map(({auction_id,...w})=>w):[];
-   auctions.push({id:a.id,itemName:a.item_name,quantity:a.quantity,publishedAt:new Date(a.published_at_ms).toISOString(),closesAt:new Date(a.closes_at_ms).toISOString(),status:closed||((clock?clock():Date.now())>=a.closes_at_ms)?'closed':'open',resultsReady:closed,bids,awards});
+  const auctions=[];for(const a of rows){const closed=a.status==='closed'&&a.cancelled_at_ms==null;const bids=closed?allBids.filter(b=>b.auction_id===a.id).map(({auction_id,...b})=>({...b,eligible:Boolean(b.eligible)})):null,awards=closed?allAwards.filter(w=>w.auction_id===a.id).map(({auction_id,...w})=>w):[];
+   auctions.push({id:a.id,itemName:a.item_name,quantity:a.quantity,publishedAt:new Date(a.published_at_ms).toISOString(),closesAt:new Date(a.closes_at_ms).toISOString(),status:a.cancelled_at_ms!=null?'cancelled':closed||((clock?clock():Date.now())>=a.closes_at_ms)?'closed':'open',resultsReady:closed,bids,awards});
   }
   return json({itemId,appearanceCount:totals.n,totalQuantity:totals.quantity,appearances:rows.map(a=>({draftId:a.draft_id??null,bossName:a.boss_name??null,raidId:a.raid_id??null,raidName:a.raid_name??null,quantity:a.quantity,publishedAt:new Date(a.published_at_ms).toISOString(),auctionId:a.id})),auctions});
  }

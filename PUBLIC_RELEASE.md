@@ -1,41 +1,34 @@
-# Guild Desk 0.7.1
+# Guild Desk 0.8.0
 
-This patch adds explicitly approved EQResource item icons to equipped slots, hover panes and item details. Icon identity comes from the uploaded item file or its saved matching advanced-loot reference. Only the exact HTTPS numeric PNG image path is accepted remotely. Failed gear images disappear while their item names and detail buttons remain usable. Item stats, ownership, attendance and DKP behavior are unchanged; no migration is needed for this patch. The 0.7.0 feature baseline below is retained.
+Officers can now test the full auction lifecycle immediately, cancel open auctions and cancel a named character's bid. Guild auctions also filter by equipment slot. The Python tracker adapter provides Copy JSON and Save JSON, and Boss loot preparation opens directly on Raid-night import. The built-in live log companion page is hidden from navigation and direct page access; its stored records and backend are retained.
 
-This build cleans up item hover/details and adds manual raid-night imports from the existing Python loot tracker. Item panes hide zero-valued stats/levels and technical effect fields, retain augment slots, and show named Click, Worn and Focus effects. Missing names resolve through a separate persistent spell-name reference; nonempty names in the uploaded item file always take priority. Item statistics remain sourced only from uploaded EQItems/SODEQ files.
+## Auction controls
 
-## Manual tracker workflow
+Open Auctions. Expand Officer auction controls under an open auction to Cancel auction or Complete now (testing). Open the auction details for Cancel a character bid. Each action requires auction-management write access, an officer reason and explicit confirmation. Default officer and administrator profiles have this permission; read-only users and ordinary members do not.
 
-Keep using the original tracker to monitor corpse loot and designated holding looters. The new companion/Start-Python-Tracker-Guild-Desk.cmd launcher loads your own Python script and adds a Guild Desk JSON export. Original OpenDKP and Excel exports keep their behavior. Your original application, settings and logs are not included in this public build.
+Cancellation applies only while bidding is open, before its deadline. It withdraws active bids, retains their original evidence and creates no awards or DKP charges. Settled/charged auctions cannot be silently reversed through this control. A named bid cancellation does not ban a later bid; retrying the same cancellation cannot remove a later rebid. The character picker contains all approved mains, not a list of participants. Other sealed bids and amounts stay private. Cancelled auctions have a separate status/filter, retain their cancellation reason, and do not expose other bidders' events or count as loot won.
 
-In Officer workspace > Boss loot preparation > Raid-night import, select or paste the export and preview it. Supported data: new structured Guild Desk JSON, existing Excel TSV (Item/Qty/Looter), or selected EQ corpse-loot log text. Optional tracker settings supply filters and your character name; the configured private log path is not uploaded. The settings JSON alone contains no loot events.
+Complete now (testing) ends bidding at the server clock and calculates the same results as normal closing. The original scheduled deadline is retained and displayed. Closing alone does not charge DKP: an officer must still confirm each item award. Normal auctions are initially published for24hours. Per-bid balance caps, no reservations or combined affordability limits, and possible negative balances after officer-confirmed charges remain unchanged.
 
-Review holding looter, boss/source, quantity, available local timestamp, exclusions and possible overlap. Import the reviewed selection, then prepare each included group into an ordinary boss draft. Publishing its sealed 24-hour auctions stays separate. Holding looters are custodians, not automatic winners. Import never creates characters, attendance, awards or DKP transactions. Identical retries and overlapping stable events do not create a second custody event or handoff draft; conflicting evidence rejects atomically. Legacy TSV lacks cross-file identity and needs explicit overlap review.
+Equipment-slot filters use the item slots captured at publication, including every applicable slot for multi-slot items. Slot options come from the recorded item data. Older auctions use the known cached item slots at migration time; unknown slots stay unknown.
 
-Saving an export does not acknowledge website receipt or gear delivery. Clock-only tracker rows are not presented as recovered log timestamps or UTC. Automatic winner notifications, delivery confirmation, Excel writeback and outgoing API synchronization are future work. See COMPANION_IMPORT.md for the transcribed workflow, limits and recommended next changes.
+## Python copy/paste or file import
 
-## Reconstruct a missed attendance capture
+Run companion/Start-Python-Tracker-Guild-Desk.cmd and select the owner's existing original tracker .py file. The original script/config are not included in public source. The adapter adds a Guild Desk menu and a visible top export bar:
 
-Attendance writers can clone a dump into another tick on the same raid. Choose **Clone dump**, supply the intended time and a reason, review the original roster count and raid rate, then confirm. The original evidence stays intact and the new tick is marked as cloned with its source, officer and reason. Identical retries cannot earn twice. Later attendance corrections are not silently copied into the exported roster. Normal current main/alt and pending-credit rules apply. See ATTENDANCE.md.
+- Copy JSON puts selected structured loot into the clipboard after confirming the raid date.
+- Save JSON saves the same structured loot to a file.
 
-Custom attendance-only profiles can open the raid workspace without needing Overview access. Missing-attendance shortcuts remain available only when their own permissions allow them.
+Both paths preserve stable event identities in companion/state, keep duplicate real loot events distinct, and leave the original OpenDKP/Excel exports, selections and tracker statuses unchanged. A failed clipboard operation retains identity metadata for a safe retry. Copying or saving does not mean the website received the data or that loot was delivered.
 
-## Item data and images
+On the website, open Boss loot preparation > Raid-night import. Paste copied JSON into Paste JSON from Python, or choose a saved file with Upload JSON or loot file. Use one input at a time, confirm the raid/date, preview, save the reviewed import and prepare each boss draft. Publishing auctions remains separate. The settings JSON alone has no loot events. The holding looter is a custodian, not automatically the winner. API push, notifications, delivery confirmation and Excel writeback remain future work.
 
-The separate names-only reference is linked by the Raidloot parser maintainer. Its available file is dated July 12, 2023; that provenance is shown honestly. Missing newer names remain unknown, and current uploaded names win over older reference labels. Names are cached atomically; downloads are bounded, coalesced and fail softly. See SPELL_NAMES.md.
+The native live log companion is hidden while the guild uses its Python tracker. This does not delete existing capture evidence, queues or pairing data. Do not delete companion/state. The previously reported native Windows file-picker issue is deferred with that hidden workflow; no fix for it is claimed in this release.
 
-The owner explicitly approved EQResource icons only on November 12, 2026. The browser loads images from the verified numeric itemimages PNG path with no referrer; unavailable images do not block item details. Image availability depends on EQResource and the user's connection. No image dataset is bundled or mirrored, and no item statistics are fetched from the site. EQResource item pages remain manual hyperlinks.
+## Upgrade and validation
 
-## Install and preserve data
+Requires Node.js24 or later; the Python adapter requires Python3.8+ with Tkinter. Stop the application before backing up or copying its database. Extract into a new folder, preserve data, companion/state, original tracker/config and any GUILD_DESK_DB path, then launch Start-Guild-Desk.cmd. Additive migration0013 adds auction-control receipts/cancellation metadata and slot snapshots without changing existing bids, deadlines or ledger charges. Earlier applied migrations remain unchanged.
 
-Requires Node.js 24 or later. Stop the current application and companion before updating. Extract into a new folder, copy your existing data and companion/state folders into the matching locations, then run Start-Guild-Desk.cmd and open http://localhost:4173. The optional Python tracker adapter requires Python 3.8 or later with Tkinter. Retain your original tracker and its settings in their existing private location.
+Private and sanitized-public test counts and exact source identity are in the artifact metadata. Independent bounded reviews cover sealed privacy, cancellation/rebid retries, late bids, actual current-ACL revocation, normal award confirmation, slot identity, Python clipboard failure/corruption and UI submission safety. Disposable browser checks exercised slot filtering, early completion, award confirmation, auction/bid cancellation and pasted JSON preview/import. The actual original Python Windows GUI and OS clipboard are not claimed as automated desktop validation; headless UI and cross-language parser checks passed.
 
-If you set GUILD_DESK_DB, keep using the same database path rather than creating a fresh default database. Back up the database while the server is stopped before the first upgraded launch. Seeing a new first-administrator registration screen instead of your existing accounts usually means a different database path was opened; stop and check the path before creating new data.
-
-Additive migrations 0010 through 0012 create the spell cache, raid-loot custody tables and immutable clone provenance without rewriting existing guild records. The 0.6.1 large-upload identity-check fix is retained. No owner preview or live database was altered during development.
-
-## Validation and release scope
-
-Run node build.mjs --local followed by node --test. Exact passing results and source identity are in the test artifact. Bounded independent reviews cover spell-cache parsing/memory limits, source-name priority, current ACL, zero/technical-field presentation, immutable custody evidence, overlap/identity conflicts, interrupted handoffs and stale-operation fencing. The Python original application is not executed during headless tests; GUI and platform coverage are described in artifact metadata.
-
-The public snapshot contains synthetic fixtures and the generic Python adapter only. It excludes private Git history, real rosters/inventory, original Python/config files, game logs, databases, state, credentials, hosting identity, and full downloaded item/spell datasets. A source push is distinct from a GitHub tag/Release or production deployment. Existing hosting remains unpublished and hosted capacity remains unverified. Public source: https://github.com/Stephen-ABF/MessDKP.
+Item stats remain uploaded-file only. Explicitly approved EQResource icon PNGs are retained from0.7.1; source item pages are manual links, with no stat scraping. Private guild records, original tracker/config, logs, databases, state, credentials, hosting identity, datasets and private Git history remain excluded from public source and artifacts. No owner preview or live database was altered. A public source push is distinct from a GitHub tag/Release or hosting deployment. Existing hosting remains unpublished and host access/capacity limitations are unchanged.

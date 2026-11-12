@@ -39,7 +39,7 @@ export async function authorizeRoute(request,db,auth){
  if(/^\/api\/items\/\d+$/.test(path)&&read)return any(['items','auctionAdmin','overview','mains','characters','auctions'],2);
  if(path.startsWith('/api/items/'))return managed('items');
  if(/^\/api\/loot\/items\/\d+\/history$/.test(path)&&read)return any(['items','auctionAdmin','overview','mains','characters','auctions'],2);
- if(path==='/api/auctions'&&method==='POST'||/^\/api\/auctions\/[^/]+\/(?:close|awards\/[^/]+\/confirm)$/.test(path))return managed('auctionAdmin',3);
+ if(path==='/api/auctions'&&method==='POST'||/^\/api\/auctions\/[^/]+\/(?:close|cancel|complete-early|bids\/[^/]+\/cancel|awards\/[^/]+\/confirm)$/.test(path))return managed('auctionAdmin',3);
  if(path==='/api/auctions'||path.startsWith('/api/auctions/'))return{...(read?any(['auctions','auctionAdmin'],2):one('auctions')),legacyRole:allowed(access,'auctionAdmin',2)?'admin':'member'};
  if(path==='/api/captures'||path.startsWith('/api/captures/'))return !read&&path.endsWith('/prepare')?both('captures','loot'):managed('captures');
  if(path==='/api/companion-devices'||path.startsWith('/api/companion-devices/'))return managed('captures');

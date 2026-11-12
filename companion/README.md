@@ -1,3 +1,11 @@
+# Current workflow: Python tracker
+
+Run Start-Python-Tracker-Guild-Desk.cmd and select your original tracker .py. Its Guild Desk menu/top bar provides Copy JSON and Save JSON. In the website use Boss loot preparation > Raid-night import to paste or upload, preview and prepare boss drafts. No device pairing is needed. See ../COMPANION_IMPORT.md.
+
+The native live log companion below is retained for future work but hidden in the website. Its original Windows picker issue is deferred; no fix is claimed here. Existing states/queues are retained.
+
+## Retained native companion documentation
+
 # Guild Desk loot companion
 
 The normal launcher opens a small graphical companion at http://127.0.0.1:4831. It reads only the EverQuest log you choose and forwards matching loot-channel messages. It does not inject game code or change game files, auctions or DKP.

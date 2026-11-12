@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
+
+test('auction management upgrade preserves bids, deadlines and charges while backfilling known slots',async()=>{
+ const db=new DatabaseSync(':memory:'),journal=JSON.parse(await readFile(new URL('../drizzle/meta/_journal.json',import.meta.url),'utf8'));
+ const apply=async tag=>{for(const statement of(await readFile(new URL('../drizzle/'+tag+'.sql',import.meta.url),'utf8')).split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))db.prepare(statement).run();};
+ try{
+  for(const entry of journal.entries.filter(e=>e.idx<13))await apply(entry.tag);
+  db.exec("INSERT INTO users VALUES('officer','officer@fixture.invalid','Officer','x','x','admin','then'); INSERT INTO characters VALUES('hero','hero','Hero',100,'Cleric','Raider','main','officer','then'); INSERT INTO item_references(item_id,name,slots_json,source_url,retrieved_at,verification_method,metadata_status) VALUES(1,'Existing ring','[\"FINGER\"]','https://items.eqresource.com/items.php?id=1','then','fixture','verified_reference'); INSERT INTO auctions(id,item_id,item_name,source_url,metadata_status,quantity,minimum_bid,published_at_ms,closes_at_ms,created_by) VALUES('auction',1,'Existing ring','https://items.eqresource.com/items.php?id=1','verified_reference',1,1,1000,86401000,'officer'); INSERT INTO auction_bid_events(operation_id,auction_id,character_id,user_id,action,amount,accepted_at_ms) VALUES('bid','auction','hero','officer','place',20,2000); INSERT INTO auction_bids VALUES('auction','hero','officer',20,1,2000,1,2000,NULL); INSERT INTO ledger VALUES('old','hero',NULL,-7,'Existing charge','officer','then','old');");
+  const auction=db.prepare('SELECT * FROM auctions').get(),bids=db.prepare('SELECT * FROM auction_bids').all(),ledger=db.prepare('SELECT * FROM ledger').all();await apply('0013_auction_management');
+  const after=db.prepare('SELECT * FROM auctions').get();for(const key of Object.keys(auction))assert.equal(after[key],auction[key],key);assert.equal(after.slots_json,'["FINGER"]');assert.equal(after.cancelled_at_ms,null);assert.deepEqual(db.prepare('SELECT * FROM auction_bids').all(),bids);assert.deepEqual(db.prepare('SELECT * FROM ledger').all(),ledger);assert.equal(db.prepare('SELECT COUNT(*) n FROM auction_admin_actions').get().n,0);
+ }finally{db.close();}
+});
 test('packaged migration applies as complete individual D1 statements with every integrated table and no seeded users',async()=>{
  const db=new DatabaseSync(':memory:');
  try {
@@ -83,16 +94,16 @@ test('saved companion device migration preserves an existing manual capture and 
  }finally{db.close();}
 });
 
-test('catalog, inventory, spell-cache, custody and attendance-clone migrations preserve existing gear, accounts and exact DKP without importing any dataset',async()=>{
+test('catalog, inventory, spell-cache, custody, attendance and auction-management migrations preserve existing gear, accounts and exact DKP without importing any dataset',async()=>{
  const db=new DatabaseSync(':memory:');
  const apply=async name=>{for(const statement of(await readFile(new URL('../drizzle/'+name,import.meta.url),'utf8')).split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean))db.prepare(statement).run();};
  try{
   for(const name of ['0000_initial','0001_item_catalog_boss_loot','0002_live_loot_capture','0003_assignment_history','0004_character_equipment','0005_attendance_eligibility','0006_access_profiles','0007_companion_devices'])await apply(name+'.sql');
   db.exec("INSERT INTO users VALUES('owner','owner@fixture.invalid','Owner','fixture','fixture','admin','2026-11-12'); INSERT INTO characters VALUES('hero','hero','Hero',100,'Bard','Raider','main','owner','2026-11-12'); INSERT INTO item_references(item_id,name,source_url,retrieved_at,verification_method,metadata_status) VALUES(1,'Existing gear','https://items.eqresource.com/items.php?id=1','now','fixture','unresolved'); INSERT INTO character_equipment VALUES('hero','head',1,'reference','now','owner','old-gear'); INSERT INTO ledger VALUES('credit','hero',NULL,-7,'Existing balance','owner','now','credit-key');");
   const gear=db.prepare('SELECT * FROM character_equipment').all(),ledger=db.prepare('SELECT * FROM ledger').all();
-  await apply('0008_uploaded_item_catalog.sql');await apply('0009_inventory_imports.sql');await apply('0010_spell_names.sql');await apply('0011_raid_loot_imports.sql');await apply('0012_attendance_clones.sql');
+  await apply('0008_uploaded_item_catalog.sql');await apply('0009_inventory_imports.sql');await apply('0010_spell_names.sql');await apply('0011_raid_loot_imports.sql');await apply('0012_attendance_clones.sql');await apply('0013_auction_management.sql');
   assert.deepEqual(db.prepare('SELECT * FROM character_equipment').all(),gear);assert.deepEqual(db.prepare('SELECT * FROM ledger').all(),ledger);assert.equal(db.prepare('SELECT COUNT(*) n FROM users').get().n,1);
-  for(const table of ['catalog_imports','catalog_items','inventory_imports','inventory_equipment_augments','spell_name_entries','spell_name_cache','raid_loot_imports','raid_loot_import_events','raid_loot_handoff_guards','attendance_tick_clones'])assert.equal(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,0);
+  for(const table of ['catalog_imports','catalog_items','inventory_imports','inventory_equipment_augments','spell_name_entries','spell_name_cache','raid_loot_imports','raid_loot_import_events','raid_loot_handoff_guards','attendance_tick_clones','auction_admin_actions'])assert.equal(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,0);
   assert.deepEqual({...db.prepare('SELECT active_import_id,revision FROM catalog_state').get()},{active_import_id:null,revision:0});
  }finally{db.close();}
 });

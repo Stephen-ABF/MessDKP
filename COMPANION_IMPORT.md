@@ -2,13 +2,15 @@
 
 The Python tracker can continue recording who picked up each corpse item. Guild Desk imports those **holding-looter custody records** for officer review, then prepares one ordinary boss draft per source group. Importing does not award gear, create a character, grant DKP, deduct DKP, or publish an auction. The holding looter can differ from the eventual auction winner.
 
+The built-in live log companion is hidden in the current website. This Python workflow uses manual clipboard/file import and needs no device pairing.
+
 ## Normal workflow
 
 Windows Python setup: install the Python Install Manager from https://www.python.org/downloads/, open a new PowerShell window and run `py install default`. Then run `py -m tkinter`; a small demo window confirms Tcl/Tk works. Close it before launching the tracker. Python 3.8 is the minimum supported version, not a requirement to install that old release. Tkinter is provided by the normal official Windows runtime rather than a separate pip package. See https://docs.python.org/3/using/windows.html and https://docs.python.org/3/library/tkinter.html.
 
 1. With Python 3.8 or later and Tk installed, launch `companion/Start-Python-Tracker-Guild-Desk.cmd`. On first run choose your existing original tracker `.py` file, rather than its settings or the export helper. Its location is remembered privately for later launches. Keep the original script and settings on your computer; they are not included in Guild Desk's public source. To select a different original script, run `.\Start-Python-Tracker-Guild-Desk.cmd --choose` from a terminal in the `companion` folder.
-2. Monitor the raid and check the rows to export. Use **Export selected loot** or the **Guild Desk** menu, confirm the raid date, and save a structured JSON selection. The existing OpenDKP and Excel exports keep their original behavior.
-3. In Guild Desk, open **Officer workspace > Boss loot preparation > Raid-night import**, choose the exported JSON file and confirm the same raid date. Select an existing raid if the resulting drafts should be linked to it. Review the date/time range, source groups, item quantities and holding looters.
+2. Monitor the raid and check the rows to export. Use **Copy JSON** or **Save JSON** in the top Guild Desk export bar, confirm the raid date, and copy or save the structured selection. The existing OpenDKP and Excel exports keep their original behavior.
+3. In Guild Desk, open **Officer workspace > Boss loot preparation > Raid-night import**, paste the copied JSON or choose the exported JSON file and confirm the same raid date. Select an existing raid if the resulting drafts should be linked to it. Review the date/time range, source groups, item quantities and holding looters.
 4. Preview first. Optional holding-looter and ignored-item lists mark rows excluded for review. A tracker settings file can supply those lists and `my_character`; the website does not upload the configured local log path or monitoring setting.
 5. Import the reviewed preview. Open the retained import to include or exclude a custody event with a reason. The original item, quantity, holder, source and selected raw evidence remain immutable.
 6. Choose **Prepare boss draft** for each included source group. An unknown source requires an officer-supplied boss name. The resulting draft uses the existing item matching and officer publishing workflow. Auction publishing remains a separate action.

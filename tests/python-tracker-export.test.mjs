@@ -236,6 +236,64 @@ assert len(good['events']) == 1
 `);
 });
 
+test('Copy JSON and Save JSON share durable event identities without changing selected statuses',options,()=>{
+ run(String.raw`
+with tempfile.TemporaryDirectory() as temporary:
+    folder=Path(temporary); rows=[row(),row(id=2,selected=False)]; before=[(r['selected'],r['status']) for r in rows]; copied=[]
+    payload=m.export_to_clipboard(rows,'2026-11-12',copied.append,folder/'state.json','fixture-log')
+    assert len(copied)==1 and json.loads(copied[0])==payload and len(payload['events'])==1
+    assert not list(folder.glob('*.json.tmp-*'))
+    saved=m.export_to_file(rows,'2026-11-12',folder/'loot.json',folder/'state.json','fixture-log')
+    assert saved['events']==payload['events']
+    assert json.loads((folder/'loot.json').read_text(encoding='utf-8'))==saved
+    assert [(r['selected'],r['status']) for r in rows]==before
+`);
+});
+
+test('clipboard failures retain stable identity and corrupt metadata never clears the clipboard',options,()=>{
+ run(String.raw`
+with tempfile.TemporaryDirectory() as temporary:
+    folder=Path(temporary); rows=[row()]; calls=[]
+    def unavailable(value):
+        raise RuntimeError('Clipboard unavailable')
+    try:
+        m.export_to_clipboard(rows,'2026-11-12',unavailable,folder/'state.json','fixture-log')
+        raise AssertionError('clipboard failure required')
+    except RuntimeError: pass
+    identifier=rows[0][m.ROW_ID_KEY]['id']
+    copied=m.export_to_clipboard(rows,'2026-11-12',calls.append,folder/'state.json','fixture-log')
+    assert copied['events'][0]['id']==identifier and len(calls)==1
+    (folder/'state.json').write_text('invalid metadata',encoding='utf-8')
+    try:
+        m.export_to_clipboard(rows,'2026-11-12',calls.append,folder/'state.json','fixture-log')
+        raise AssertionError('corruption must fail closed')
+    except ValueError: pass
+    assert len(calls)==1
+`);
+});
+
+test('Copy JSON UI skips the save dialog and preserves original export methods',options,()=>{
+ run(String.raw`
+import types
+fake_tk=types.ModuleType('tkinter'); infos=[]
+fake_tk.messagebox=types.SimpleNamespace(showerror=lambda *a,**k: (_ for _ in ()).throw(AssertionError(a)),showinfo=lambda *a,**k: infos.append(a))
+fake_tk.simpledialog=types.SimpleNamespace(askstring=lambda *a,**k:'2026-11-12')
+fake_tk.filedialog=types.SimpleNamespace(asksaveasfilename=lambda **k: (_ for _ in ()).throw(AssertionError('Copy must not open Save')))
+sys.modules['tkinter']=fake_tk
+class Original:
+    def _export_excel(self): return 'excel-original'
+    def _export_opendkp(self): return 'opendkp-original'
+with tempfile.TemporaryDirectory() as temporary:
+    wrapped=m.create_wrapped_tracker_class(types.SimpleNamespace(EQLootTracker=Original),Path(temporary),Path(temporary)/'original.py')
+    app=object.__new__(wrapped); app.loot_rows=[row()]; app._selected_rows=lambda:app.loot_rows
+    copied=[];app.clipboard_clear=lambda:None;app.clipboard_append=copied.append;app.update_idletasks=lambda:None
+    app._export_guild_desk('copy')
+    assert len(copied)==1 and json.loads(copied[0])['events'][0]['itemName']=='Fixture Ring'
+    assert app._export_excel()=='excel-original' and app._export_opendkp()=='opendkp-original'
+    assert infos and infos[0][0]=='Copied for Guild Desk'
+`);
+});
+
 test('Python structured export round-trips through the actual JavaScript tracker import parser',options,async()=>{
  const out=run(String.raw`
 rows = [row(), row(id=2), row(id=3, timestamp='2026-11-12 20:16:17', item='Fabled Fixture Cloak')]

@@ -29,6 +29,6 @@ Version0.6 updates the earlier unlimited-per-bid policy. The live adapter checks
 
 # Remaining backlog decisions
 
-Cancellation, disqualification, reopening, reversal, reassignment, alternative bidding modes, alt DKP and loot sales remain outside this live slice. Additional class or guild-standing restrictions must be explicitly approved before being introduced. No further Owner decision is required for the confirmed live policies above.
+Officers may cancel a named active bid or an open auction, and complete an open auction early for testing, with explicit confirmation and an audit reason. Normal winner pricing and separate officer charge confirmation apply. Disqualification, reopening, reversal, reassignment, alternative bidding modes, alt DKP and loot sales remain outside this live slice. Additional class or guild-standing restrictions must be explicitly approved before being introduced. No further Owner decision is required for the confirmed live policies above.
 
 Run `node --test tests/auction-rules.test.mjs tests/auctions.test.mjs`. The pure engine is independently testable; integration details are in `AUCTIONS.md`.

@@ -7,7 +7,7 @@ import {createD1} from './d1-adapter.mjs';
 const read=name=>readFileSync(new URL('../worker/'+name,import.meta.url),'utf8');
 const origin='https://guild.test';
 function fixture(){
- const DB=createD1([read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('auctions.sql'),read('admin.sql')].join('\n'));
+ const DB=createD1([read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('auctions.sql'),read('auction-management.sql'),read('admin.sql')].join('\n'));
  let time=Date.parse('2026-11-12T18:00:00Z');const api=createAuctionApi({clock:()=>time});
  const users={officer:{id:'officer',role:'admin'},member:{id:'member',role:'member'},other:{id:'other',role:'member'}};
  for(const u of Object.values(users))DB.raw.prepare('INSERT INTO users VALUES(?,?,?,?,?,?,?)').run(u.id,u.id+'@fixture.test',u.id,'fixture','fixture',u.role,new Date(time).toISOString());

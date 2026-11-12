@@ -9,7 +9,7 @@ const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
 const initial=Date.parse('2026-11-12T18:00:00.000Z');
 const candidate=(itemId,name,match='exact')=>({itemId,name,match,sourceUrl:`https://items.eqresource.com/items.php?id=${itemId}`});
 function harness(dependencies={}){
- const DB=createD1(read('../worker/schema.sql')+'\n'+read('../worker/admin.sql')+'\n'+ITEM_REFERENCE_SCHEMA_SQL+'\n'+read('../worker/auctions.sql')+'\n'+read('../worker/loot.sql'));
+ const DB=createD1(read('../worker/schema.sql')+'\n'+read('../worker/admin.sql')+'\n'+ITEM_REFERENCE_SCHEMA_SQL+'\n'+(read('../worker/auctions.sql')+'\n'+read('../worker/auction-management.sql'))+'\n'+read('../worker/loot.sql'));
  let time=initial;const users={},errors=[];
  for(const[key,role]of[['officer','admin'],['alice','member'],['bob','member']]){
   const user={id:key,name:key,email:`${key}@test.invalid`,role};users[key]=user;

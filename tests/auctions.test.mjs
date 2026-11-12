@@ -7,7 +7,7 @@ import {ITEM_REFERENCE_SCHEMA_SQL} from '../worker/items.mjs';
 const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
 const initialTime=Date.parse('2026-11-11T18:00:00.000Z');
 function harness(){
- const DB=createD1(read('../worker/schema.sql')+'\n'+read('../worker/admin.sql')+'\n'+ITEM_REFERENCE_SCHEMA_SQL+'\n'+read('../worker/auctions.sql'));
+ const DB=createD1(read('../worker/schema.sql')+'\n'+read('../worker/admin.sql')+'\n'+ITEM_REFERENCE_SCHEMA_SQL+'\n'+(read('../worker/auctions.sql')+'\n'+read('../worker/auction-management.sql')));
  let time=initialTime;const api=createAuctionApi({clock:()=>time}),errors=[];
  const batch=DB.batch.bind(DB);DB.batch=async statements=>{try{return await batch(statements);}catch(error){errors.push(String(error));throw error;}};
  const users={};for(const [key,role,kind]of[['officer','admin','main'],['alice','member','main'],['bob','member','main'],['cara','member','main'],['dave','member','main'],['eve','member','main'],['alt','member','alt'],['unapproved','member','unclassified']]){const u={id:key,email:`${key}@test.invalid`,name:key,role};users[key]=u;DB.raw.prepare('INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES(?,?,?,?,?,?,?)').run(key,u.email,key,'test-only','test-only',role,new Date(time).toISOString());DB.raw.prepare('INSERT INTO characters(id,name_key,name,level,class_name,guild_rank,kind,owner_id,approved_at) VALUES(?,?,?,?,?,?,?,?,?)').run(`char-${key}`,key,key,85,'Cleric','Raider',kind,key,kind==='unclassified'?null:new Date(time).toISOString());}

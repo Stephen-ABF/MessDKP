@@ -92,6 +92,13 @@
       "when": 1794505791483,
       "tag": "0012_attendance_clones",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794509395299,
+      "tag": "0013_auction_management",
+      "breakpoints": true
     }
   ]
 }

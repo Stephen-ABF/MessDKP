@@ -9,7 +9,7 @@ function harness(permissions={auctionAdmin:3,auctions:3,loot:3,captures:3}){
 }
 
 test('auction list exposes slot choices from imported metadata and officer controls only to writers',async()=>{
- const h=harness();h.respond(r=>r.path.startsWith('/api/auctions?')?Response.json({auctions:[auction],slots:['EAR','FINGER']}):r.path.startsWith('/api/items?')?Response.json({items:[]}):Response.json({settings:{minimumBid:1}}));const html=await h.run('auctionsPage()');assert.match(html,/<select name="slot">/);assert.match(html,/<option value="FINGER"/);assert.match(html,/Cancel auction/);assert.match(html,/Complete now \(testing\)/);assert.doesNotMatch(html,/Cancel a character bid/);
+ const h=harness();h.respond(r=>r.path.startsWith('/api/auctions?')?Response.json({auctions:[auction],slots:['EAR','FINGER']}):r.path.startsWith('/api/items?')?Response.json({items:[]}):Response.json({settings:{minimumBid:1}}));const html=await h.run('auctionsPage()');assert.match(html,/<select name="slot">/);assert.match(html,/<option value="FINGER"/);assert.match(html,/Cancel auction/);assert.match(html,/Complete now \(testing\)/);assert.match(html,/Cancel a character bid/);assert.doesNotMatch(html,/data-form="manage-auction"/);
  const member=harness({auctions:3,auctionAdmin:0});member.respond(()=>Response.json({auctions:[auction],slots:['FINGER']}));const normal=await member.run('auctionsPage()');assert.doesNotMatch(normal,/Officer auction controls|Cancel auction|Complete now/);assert.match(normal,/<select name="slot">/);
 });
 

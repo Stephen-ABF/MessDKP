@@ -465,7 +465,7 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 /* Compact guild auction list. Officer reasons live in the action dialog. */
 .auction-table-wrap{width:100%;margin-top:4px}
 .auction-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0}
-.auction-table .auction-id-column{width:78px}.auction-table .auction-copies-column{width:84px}.auction-table .auction-min-column{width:104px}.auction-table .auction-time-column{width:112px}.auction-table .auction-actions-column{width:182px}
+.auction-table .auction-id-column{width:78px}.auction-table .auction-copies-column{width:84px}.auction-table .auction-bid-column{width:104px}.auction-table .auction-time-column{width:112px}.auction-table .auction-actions-column{width:182px}
 .auction-table thead th{white-space:nowrap;font-size:17px;line-height:1.3;font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink);padding:12px 8px 15px;vertical-align:middle}
 .auction-table .auction-row{display:table-row;padding:0;border:0;border-radius:0;box-shadow:none;background:var(--panel)}
 .auction-table .auction-row>td{padding:12px 8px;border-top:1px solid var(--line);vertical-align:middle;overflow-wrap:normal}
@@ -488,7 +488,7 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .auction-slot,.auction-class-summary{max-width:110px;overflow:hidden;text-overflow:ellipsis}
 .auction-status{text-transform:capitalize}
 .auction-table .auction-copy-count{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
-.auction-minimum strong{font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums}.auction-minimum small{font-size:11px;color:var(--muted)}
+.auction-your-bid strong{font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums}.auction-your-bid small{font-size:11px;color:var(--muted)}
 .auction-time{font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}.auction-time .countdown{font-size:inherit}
 .auction-pill-actions{display:flex;justify-content:flex-end;align-items:center;gap:6px}
 .auction-view-button,.auction-controls-menu>summary{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:32px;padding:5px 10px;border-radius:99px;font-size:12px;line-height:1.5;white-space:nowrap}
@@ -500,7 +500,7 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .auction-control-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:15px}.auction-control-dialog-head h2{font-size:20px}
 .auction-control-context{margin-top:20px}.auction-control-context>strong{font-size:17px}.auction-control-dialog .officer-action-card{padding:18px}
 .auction-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-@media(max-width:1150px) and (min-width:701px){.auction-table .auction-id-column{width:64px}.auction-table .auction-copies-column{width:78px}.auction-table .auction-min-column{width:92px}.auction-table .auction-time-column{width:98px}.auction-table .auction-actions-column{width:164px}.auction-table thead th{font-size:16px}.auction-view-button,.auction-controls-menu>summary{padding:5px 8px;font-size:11px}}
+@media(max-width:1150px) and (min-width:701px){.auction-table .auction-id-column{width:64px}.auction-table .auction-copies-column{width:78px}.auction-table .auction-bid-column{width:92px}.auction-table .auction-time-column{width:98px}.auction-table .auction-actions-column{width:164px}.auction-table thead th{font-size:16px}.auction-view-button,.auction-controls-menu>summary{padding:5px 8px;font-size:11px}}
 @media(max-width:700px){
  .auction-table colgroup{display:none}.auction-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
  .auction-table,.auction-table tbody{display:block;width:100%}.auction-table tbody{display:grid;gap:10px}
@@ -508,11 +508,13 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
  .auction-table .auction-row.wish-listed,.auction-table .auction-row.bid-placed{padding:12px;border:1px solid var(--line);border-radius:9px}
  .auction-table .auction-row>td{display:block;padding:0;border:0!important;box-shadow:none!important;border-radius:0!important}
  .auction-table .auction-item-id{grid-column:1;grid-row:1;align-self:center}.auction-table .auction-item-cell{grid-column:2/4;grid-row:1}
- .auction-table .auction-copy-count{grid-column:1;grid-row:2;font-size:21px}.auction-table .auction-minimum{grid-column:2;grid-row:2}.auction-table .auction-time{grid-column:3;grid-row:2}
+ .auction-table .auction-copy-count{grid-column:1;grid-row:2;font-size:21px}.auction-table .auction-your-bid{grid-column:2;grid-row:2}.auction-table .auction-time{grid-column:3;grid-row:2}
  .auction-table .auction-row-actions{grid-column:1/-1;grid-row:3}
- .auction-copy-count:before,.auction-minimum:before,.auction-time:before{content:attr(data-label);display:block;font-size:12px;line-height:1.3;font-weight:600;color:var(--muted);margin-bottom:4px}
+ .auction-copy-count:before,.auction-your-bid:before,.auction-time:before{content:attr(data-label);display:block;font-size:12px;line-height:1.3;font-weight:600;color:var(--muted);margin-bottom:4px}
  .auction-table .auction-item-name{white-space:normal;overflow-wrap:anywhere}.auction-row-meta{margin-top:0;margin-left:0;max-width:100%;gap:4px 6px}
  .auction-item-link{padding-left:50px;min-height:40px}.auction-table .auction-pill-actions{margin-top:5px}
  .auction-control-dialog{padding:16px}.auction-control-dialog-head{align-items:flex-start}.auction-control-dialog-head h2{font-size:18px}
 }
 @media(pointer:coarse){.auction-view-button,.auction-controls-menu>summary,.auction-controls-options button{min-height:44px}}
+
+.auction-your-bid:empty::before{content:none;display:none}

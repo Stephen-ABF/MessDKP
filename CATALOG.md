@@ -48,3 +48,7 @@ An independent disposable in-memory SQLite run imported the real 144,712-row gzi
 # Weapon presentation (0.11.0)
 
 Weapon details and comparison panes show Damage, Delay and base Ratio (damage / delay) first. Elemental damage appears below AC/HP/mana/endurance and above levels, with a separately labeled ratio including elemental damage: (base damage + elemental damage) / delay. These are displayed to three decimal places; they are arithmetic references, not resistance-adjusted DPS estimates. Missing/zero delay never produces a ratio. Nonzero elemental fields come from elemdmgamt/elemdmgtype in the uploaded file; old cached raw fields are supported. Elemental type IDs are labels, not numeric stat differences. See the EQEmu item-element-types enum documentation for the 1=Magic, 2=Fire, 3=Cold, 4=Poison, 5=Disease mapping; unknown types remain explicitly numbered. No remote item statistics are fetched.
+
+## Compact search (0.13)
+
+GET /api/items searches the entire active upload and returns compact item identity, class, slot, icon/reference and source-status summaries. It omits stats, raw fields, effects and augments. GET /api/items/:id retains the full item data for hover/detail views. Internal matching APIs retain their full-data contract. Searching never scrapes an item website or changes DKP.

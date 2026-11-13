@@ -8,7 +8,7 @@ Backend export: `handleAuctionApi(request, env, {user, csrfToken})` from `worker
 
 | Method and route | Body | Response |
 |---|---|---|
-| GET /api/auctions | Optional query `q`, `class`, `status=open|closed|all` | `{auctions:[Auction]}` newest100. No other bidder identities, amounts, counts, totals or participation are disclosed while open. |
+| GET /api/auctions | Optional query `q`, `class`, `slot`, `status=open|closed|cancelled|all`, `sort`, `direction`, `limit=1..100` (default100), `offset=0..1000000` | `{auctions:[Auction],total,limit,offset,activeBidSummary,slots}`. The UI requests25 per page; filtering and sorting apply before paging. No other bidder identities, amounts, counts, totals or participation are disclosed while open. |
 | POST /api/auctions | Officer: `{itemId,quantity,minimumBid?:number,title?:string,idempotencyKey?:string}` | 201 `{auction:Auction}`; an identical keyed retry returns the original auction200. Requires cached item reference. Known item name is authoritative; unresolved name requires explicit title. Quantity1-50; whole-DKP minimum1 or greater. Omitted minimum snapshots persisted guild settings, defaulting to1 only when settings have not been saved. Publishes immediately for exactly24h. |
 | GET /api/auctions/:id | None | `{auction:Auction,bids:null|[Bid],awards:[Award]}`. Lazily settles expired auction, without charging DKP. |
 | PUT /api/auctions/:id/bid | `{amount:positive integer}` | `{auction:Auction,ownBid:OwnBid}`. Approved owned main required. Each submitted amount must be no greater than that main's current DKP balance. Other auction bids do not reserve or reduce this maximum. |
@@ -67,3 +67,9 @@ The former Min. bid column is now Your Bid. It displays only the signed-in membe
 Click Item ID, Item, Copies, Your Bid or Time left to sort; click the same heading to reverse direction. First click uses A-Z for name, ascending for ID/deadline, and highest first for copies/Your Bid. Blank own bids stay last in either direction. Actions is not a sortable data column. Mobile has Sort by and Direction selectors. Selected headers expose aria-sort and retain keyboard focus after the response when focus has not moved elsewhere.
 
 GET /api/auctions accepts sort=publishedAt|itemId|itemName|quantity|ownBid|closesAt and direction=asc|desc. Default remains newest published. Sort expressions/directions are strictly allowlisted; ownBid is bound to the authenticated user and excludes inactive/cancelled bids. Case-insensitive item-name ordering and deterministic publication/ID tie-breaks precede LIMIT100. Filters and global own active-bid totals are retained; stale responses cannot replace a newer request or account. Sorting performs no writes.
+
+## Usability (0.13)
+
+Publishing searches GET /api/items with name or ID and a20-result compact limit. Selecting a result calls POST /api/items/lookup to hydrate that uploaded reference; auctionAdmin write access suffices for this one cache action. General item administration remains separately protected. No auction is created until Publish is submitted. A pending publication locks selection until the request finishes.
+
+List controls preserve unsaved publication fields. Wide tables have sortable headings; constrained content uses readable rows and explicit Sort by/Direction selectors. Previous/Next traverse every result, not just the first100. Personal spending totals stay independent of filters and paging. Page/detail hashes support refresh, sign-in return, Back/Forward and sharing. Detail Controls opens only the chosen officer action in a dialog.

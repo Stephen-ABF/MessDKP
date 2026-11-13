@@ -38,9 +38,21 @@ const AUDIT_RECORDS=`WITH evidence AS (
  ) END) AS subjectUserId
  FROM targets t
 ), records AS (
- SELECT r.id,r.actorId,r.actorName,r.action,r.details,r.createdAt,r.characterId,c.name AS characterName,r.subjectUserId,subject.name AS subjectUserName
+ SELECT r.id,r.actorId,r.actorName,r.action,r.details,r.createdAt,r.characterId,c.name AS characterName,r.subjectUserId,subject.name AS subjectUserName,
+ raid.name AS raidName,COALESCE(json_extract(r.evidence,'$.itemName'),auction.item_name,item.name) AS itemName
  FROM resolved r LEFT JOIN characters c ON c.id=r.characterId LEFT JOIN users subject ON subject.id=r.subjectUserId
+ LEFT JOIN ticks tick ON tick.id=json_extract(r.evidence,'$.tickId')
+ LEFT JOIN raids raid ON raid.id=COALESCE(json_extract(r.evidence,'$.raidId'),tick.raid_id)
+ LEFT JOIN auctions auction ON auction.id=json_extract(r.evidence,'$.auctionId')
+ LEFT JOIN item_references item ON item.item_id=json_extract(r.evidence,'$.itemId')
 )`;
+export function auditDescription(entry){
+ let details={};try{const value=typeof entry.details==='string'?JSON.parse(entry.details):entry.details;if(value&&typeof value==='object'&&!Array.isArray(value))details=value;}catch{}
+ const text=value=>typeof value==='string'?value.trim().slice(0,1000):'',who=text(entry.characterName)||text(entry.subjectUserName)||'the recorded member',raid=text(entry.raidName)||text(details.raidName)||text(details.name)||'the recorded raid',item=text(entry.itemName)||'the recorded item';
+ const descriptions={login:'Signed in.',account_registered:'Created a guild account.',character_requested:`Requested a new character: ${text(details.name)||who}.`,claim_requested:`Requested ownership of ${who}.`,claim_approved:`Approved ownership of ${who}${['main','alt'].includes(details.kind)?' as '+details.kind:''}.`,character_detached:`Detached ${who} from its account.`,raid_created:`Created ${raid}${text(details.date)?' on '+text(details.date):''}.`,raid_deleted:`Deleted ${raid} and its associated raid records.`,attendance_import:`Imported attendance for ${raid}${Array.isArray(details.fileNames)?' from '+details.fileNames.length+' source capture(s)':''}.`,attendance_tick_cloned:`Cloned an attendance capture for ${raid}.`,dkp_adjustment:`Adjusted DKP for ${who}${Number.isSafeInteger(details.amount)?' by '+(details.amount>0?'+':'')+details.amount+' DKP':''}.`,attendance_correction_requested:`Requested missing attendance for ${who}.`,attendance_correction_approved:`Approved missing attendance for ${who}${Number.isSafeInteger(details.creditedDkp)?'; credited '+details.creditedDkp+' DKP':''}.`,attendance_correction_rejected:`Rejected the missing attendance request for ${who}.`,auction_published:`Published ${Number.isSafeInteger(details.quantity)?details.quantity+' copies of ':''}${item}.`,auction_closed:`Completed bidding for ${item}.`,auction_cancelled:`Cancelled the auction for ${item}.`,auction_completed_early:`Completed bidding early for ${item}.`,auction_award_confirmed:`Confirmed ${item} for ${who}${Number.isSafeInteger(details.price)?' at '+details.price+' DKP':''}.`,character_equipment_changed:`Updated equipment for ${who}: ${item}.`,settings_changed:'Updated guild reward settings.',item_catalog_imported:`Updated the item catalog${Number.isSafeInteger(details.itemCount)?' with '+details.itemCount+' items':''}.`};
+ let description=descriptions[entry.action]||String(entry.action||'Guild activity').replace(/_/g,' ').replace(/^./,c=>c.toUpperCase())+(entry.characterName?' for '+who:'')+'.';
+ const reason=text(details.decisionReason)||text(details.reason);if(reason)description+=' Reason: '+reason;return description;
+}
 export async function handleAuditLogApi(request,env,auth={}){
  const url=new URL(request.url);if(url.pathname!=='/api/audit')return null;
  try{
@@ -62,6 +74,6 @@ export async function handleAuditLogApi(request,env,auth={}){
    auditSql(db,'SELECT id,name FROM characters ORDER BY name COLLATE NOCASE,id'),
    auditSql(db,'SELECT DISTINCT action FROM audit ORDER BY action')
   ]);
-  return auditJson({entries:results[0].results,total:results[1].results[0].total,limit:filters.limit,offset:filters.offset,filters:{actors:results[2].results,subjects:results[3].results,characters:results[4].results,actions:results[5].results.map(row=>row.action)}});
+  return auditJson({entries:results[0].results.map(entry=>({...entry,description:auditDescription(entry)})),total:results[1].results[0].total,limit:filters.limit,offset:filters.offset,filters:{actors:results[2].results,subjects:results[3].results,characters:results[4].results,actions:results[5].results.map(row=>row.action)}});
  }catch(error){return auditJson({error:error instanceof AuditLogError?error.message:'The audit history could not be loaded.',code:error instanceof AuditLogError?error.code:'audit_error'},error.status||500);}
 }

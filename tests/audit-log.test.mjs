@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createD1} from './d1-adapter.mjs';
 import {applicationSchema} from './app-schema.mjs';
-import {handleAuditLogApi} from '../worker/audit-log.mjs';
+import {handleAuditLogApi,auditDescription} from '../worker/audit-log.mjs';
 const origin='https://guild.test';
 async function fixture(){
  const DB=createD1(await applicationSchema());
@@ -91,4 +91,12 @@ test('same-timestamp ownership transitions never use random IDs to attribute a h
  // Differing textual ISO precision still represents the same timestamp.
  h.insert('precision-ambiguous','officer','legacy_equipment',{characterId:'hero'},'2026-11-16T18:00:00Z');
  assert.equal((await h.call('?action=legacy_equipment')).body.entries[0].subjectUserId,null);
+}finally{h.close();}});
+
+
+test('readable audit descriptions resolve known names and reasons without raw JSON, IDs or sealed bid fields',async()=>{const h=await fixture();try{
+ const adjustment=(await h.call('?action=dkp_adjustment&q='+encodeURIComponent('100% complete'))).body.entries[0];assert.match(adjustment.description,/Profilehero/);assert.match(adjustment.description,/Attendance review 100% complete/);assert.doesNotMatch(adjustment.description,/characterId|subjectUserId|\{|\}/);
+ const summary=auditDescription({action:'auction_award_confirmed',characterName:'Profilehero',itemName:'Synthetic raid helm',details:JSON.stringify({auctionId:'private-internal-id',price:25,amount:999,characterId:'private-character-id'})});assert.equal(summary,'Confirmed Synthetic raid helm for Profilehero at 25 DKP.');assert.doesNotMatch(summary,/999|private/);
+ assert.equal(auditDescription({action:'legacy_import',details:'malformed{ evidence'}),'Legacy import.');
+ const unknown=auditDescription({action:'unknown_event',details:{secret:'sensitive',reason:'Officer explanation'}});assert.equal(unknown,'Unknown event. Reason: Officer explanation');
 }finally{h.close();}});

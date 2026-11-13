@@ -45,10 +45,10 @@ function publicText(text,file){
 const files=new Map();
 for(const file of records)files.set(file,publicText(await readFile(path.join(root,file),'utf8'),file));
 const packageInfo=JSON.parse(files.get('package.json'));
-if(packageInfo.version!=='0.12.2')throw Error('Review the public exporter and release notes before exporting a different release version.');
+if(packageInfo.version!=='0.13.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
 packageInfo.scripts={...packageInfo.scripts,build:'node build.mjs --local',test:'node --test'};
 files.set('package.json',JSON.stringify(packageInfo,null,2)+'\n');
-files.set('README.md',`# Guild Desk 0.12.2
+files.set('README.md',`# Guild Desk 0.13.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -70,9 +70,17 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.12.2
+## New in 0.13.0
 
-Click Item ID, Item name, Copies, Your Bid or Time left to sort. Click again to reverse. Your Bid starts highest first, name starts A-Z, and blank bids stay last. Sorting happens on the server before the100-row display limit and preserves filters. Phone-width screens have Sort by/Direction controls.
+Auction names and class/slot metadata remain readable beside the sidebar at tablet widths. Responsive rows replace compressed columns, while desktop keeps the larger sortable headings. Lists have 25-item pages and filtered totals, with global own-bid spending summaries across all pages.
+
+Publishing searches the entire uploaded catalog by name or ID, then explicitly selects a matching item; it no longer depends on the first 100 alphabetical references. Search results omit full stats/raw fields; opening an item retrieves full details. Auction-management writers can save the selected reference without unrelated item-administration access.
+
+Page and detail links use URL hashes, survive refresh/login and support browser Back/Forward. Desktop navigation stays available while scrolling; phone navigation collapses behind Menu. Audit entries use readable descriptions, resolved names and reasons. Auction details label usable classes and use the same compact Controls action dialog as the list. Existing DKP, sealed-bid and officer confirmation rules remain unchanged. No schema migration.
+
+## Sorting (0.12.2)
+
+Click Item ID, Item name, Copies, Your Bid or Time left to sort. Click again to reverse. Your Bid starts highest first, name starts A-Z, and blank bids stay last. Sorting happens on the server before paging and preserves filters. Narrow screens have Sort by/Direction controls.
 
 ## Your Bid column (0.12.1)
 
@@ -120,7 +128,7 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.12.2 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.13.0 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.
 `);
@@ -130,7 +138,7 @@ const extras=Array.from({length:27},(_,index)=>'Demochar'+letters(index));
 function artificialRoster(names){return names.map(name=>{const index=name==='Mainhero'?0:name==='Secondhero'?1:extras.indexOf(name)+2;return[name,'80',classes[index%classes.length],'Demo Member','','01/01/26','Demo Zone','Artificial example; not an ownership claim','','on','off',String(1000+index),'01/01/26','Artificial example; not an ownership claim',''].join('\t');}).join('\n')+'\n';}
 files.set('tests/fixtures/DemoGuild_test-20261111-180515(1).txt',artificialRoster(['Mainhero',...extras.slice(0,25)]));
 files.set('tests/fixtures/DemoGuild_test-20261111-182058(1).txt',artificialRoster(['Mainhero','Secondhero',...extras]));
-files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.12.2',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
+files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.13.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
 
 let inputIsPublic=false;try{inputIsPublic=JSON.parse(await readFile(path.join(root,'PUBLIC_SOURCE.json'),'utf8')).syntheticSamples===true;}catch{}
 for(const [file,text]of files){

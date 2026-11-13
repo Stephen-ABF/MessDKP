@@ -42,6 +42,7 @@ export async function authorizeRoute(request,db,auth){
  if(path==='/api/attendance-requests'&&method==='POST')return one('corrections',3);
  if(/^\/api\/attendance-requests\/[^/]+\/(approve|reject)$/.test(path))return managed('correctionReview',3);
  if(path==='/api/items')return{...any(['items','auctionAdmin'],2),legacyRole:'admin'};
+ if(path==='/api/items/lookup'&&method==='POST')return{...any(['items','auctionAdmin'],3),legacyRole:'admin'};
  if(/^\/api\/items\/\d+$/.test(path)&&read)return any(['items','auctionAdmin','overview','mains','characters','auctions'],2);
  if(path.startsWith('/api/items/'))return managed('items');
  if(/^\/api\/loot\/items\/\d+\/history$/.test(path)&&read)return any(['items','auctionAdmin','overview','mains','characters','auctions'],2);

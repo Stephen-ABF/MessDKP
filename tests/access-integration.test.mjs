@@ -62,7 +62,7 @@ test('auction manager and ledger writer dependencies do not require unrelated re
  assert.equal((await h.call('/api/characters','GET',undefined,h.other)).status,403);
  assert.equal((await h.call('/api/ledger/characters','GET',undefined,h.other)).status,200);
  assert.equal((await h.call('/api/settings','GET',undefined,h.other)).status,200);
- assert.equal((await h.call('/api/items/lookup','POST',{itemId:81773},h.other)).status,403);
+ assert.equal((await h.call('/api/items/lookup','POST',{itemId:81773},h.other)).status,200);
  await h.call('/api/items/lookup','POST',{itemId:81773},h.admin);
  const a=await h.call('/api/auctions','POST',{itemId:81773,quantity:1},h.other);assert.equal(a.status,201,JSON.stringify(a.body));
  assert.equal((await h.call('/api/auctions/'+a.body.auction.id,'GET',undefined,h.other)).status,200);

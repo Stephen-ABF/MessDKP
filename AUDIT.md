@@ -11,3 +11,7 @@ Target attribution prefers recorded subject IDs, previous owner IDs and the orig
 This module never reads `auction_bid_events` or expands sealed bid details. It filters only the existing global audit evidence, whose writers must continue to omit active sealed bid amounts and identities. The API does not imply external security review or browser acceptance.
 
 Optional blank or whitespace-only from/to values mean no date filter. Invalid nonempty calendar dates and repeated filters remain rejected. This prevents the initial empty filter form from hiding all audit records.
+
+## Readable entries (0.13)
+
+Entries add description, raidName and itemName. Descriptions use the action, recorded reasons and safe event-specific values, with character/account names from existing attribution and raid/item metadata when available. The UI escapes and displays the description instead of raw JSON. Missing/deleted metadata uses a generic description; internal identifiers are never substituted for missing names. Original details remain unchanged for evidence and existing filters. No live bid/participation joins are added.

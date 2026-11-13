@@ -86,3 +86,12 @@ test('file-only item and loot APIs ignore all remote callbacks and use active up
  const missing=createItemApi({fileOnly:true,fetchItemDetails:remote,searchItemsByName:remote});assert.equal((await missing(post('/api/items/search',{name:'Ring'}),{DB},context)).status,503);assert.equal(calls,0);
 });
 
+
+
+test('HTTP catalog search finds loot beyond the first 100 with compact DTOs while detail reads retain every field',async t=>{
+ const DB=await harness(t),rows=[];for(let n=0;n<140;n++)rows.push(row(10000+n,'A junk '+n,{UNK217:'x'.repeat(1000)}));rows.push(row(99999,'Zulu Raid Reward',{UNK217:'x'.repeat(1000),hp:500}));await upload(DB,file(rows));
+ const api=createItemApi({catalog,fileOnly:true});let response=await api(new Request('https://guild.test/api/items?q=Zulu&limit=20'),{DB},context);assert.equal(response.status,200);let data=await response.json();assert.equal(data.total,1);assert.equal(data.items[0].itemId,99999);assert.equal(data.items[0].details,undefined);assert.equal(data.items[0].stats,undefined);assert.ok(JSON.stringify(data).length<2500);
+ response=await api(new Request('https://guild.test/api/items?q=A+junk&limit=20'),{DB},context);data=await response.json();assert.equal(data.items.length,20);assert.equal(data.total,140);assert.ok(JSON.stringify(data).length<16000,JSON.stringify(data).length);assert.ok(data.items.every(item=>item.advancedLoot&&item.slots.includes('CHEST')));
+ response=await api(new Request('https://guild.test/api/items/99999'),{DB},context);data=await response.json();assert.equal(data.item.stats.hp,500);assert.equal(data.item.details.fields.find(field=>field.label==='UNK217').value.length,1000);
+ assert.equal(count(DB,'item_references'),0);assert.equal(count(DB,'ledger'),0);
+});

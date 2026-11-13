@@ -270,7 +270,7 @@ async function fileCatalogItemApi(request,env,context,catalog){
   const stored=async id=>{const row=await env.DB.prepare('SELECT * FROM item_references WHERE item_id=?').bind(id).first();if(!row)return null;const item=itemFromRow(row);return{...item,iconUrl:null,sourceStatus:{status:'retained',message:'Previously stored item data; this ID is not in the active upload.'}};};
   if(path==='/api/items'&&request.method==='GET'){
    const q=(url.searchParams.get('q')||'').trim(),classCode=normalizeClass(url.searchParams.get('class'))||'',slot=(url.searchParams.get('slot')||'').trim().toUpperCase(),rawLimit=url.searchParams.get('limit')||'50';
-   if(!/^\d+$/.test(rawLimit))fail('Choose a result limit from 1 to 100.','invalid_limit');return json(await catalog.searchCatalogItems(env.DB,{q,classCode,slot,limit:Number(rawLimit)}));
+   if(!/^\d+$/.test(rawLimit))fail('Choose a result limit from 1 to 100.','invalid_limit');return json(await catalog.searchCatalogItems(env.DB,{q,classCode,slot,limit:Number(rawLimit),summary:true}));
   }
   if(match&&request.method==='GET'&&!match[2]){const id=parseEqItemReference(match[1]).itemId,item=await catalog.getCatalogItem(env.DB,id)||await stored(id);return item?json({item,sourceStatus:item.sourceStatus}):json({error:'This item is not in the uploaded catalog.',code:'not_found',sourceUrl:SOURCE_ORIGIN+'/items.php?id='+id},404);}
   if(request.method!=='POST')return json({error:'Method not allowed.',code:'method_not_allowed'},405);requireMutationAccess(request,context);

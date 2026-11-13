@@ -1,9 +1,13 @@
-# Guild Desk 0.12.2
+# Guild Desk 0.13.0
 
-Guild auction columns are sortable: Item ID, Item name, Copies, Your Bid and Time left. Click a heading again to reverse direction. Name starts A-Z, Your Bid and Copies start highest first, and blank bid cells always stay last. Selected headings show an arrow and accessible sort state. Phone screens offer Sort by and Direction selectors.
+- Readable auction names, classes and slots at tablet and phone widths; larger sortable columns remain on wider screens.
+- Auction pages show25 records with Previous/Next and filtered totals. Personal active-bid totals still cover all current auctions.
+- Publish by searching the entire uploaded catalog by name or ID, then selecting a result. Selection preserves copies/minimum and cannot interrupt a publication in progress.
+- Smaller item search responses; full statistics, effects and augment data load when the item is opened.
+- Shareable page/detail links, refresh and browser Back/Forward, including sign-in return to the requested page.
+- Readable audit descriptions with names and reasons; original audit evidence remains unchanged.
+- Sticky desktop sidebar, collapsed phone Menu, labeled usable classes, and compact officer Controls on auction details.
 
-Sorting is applied on the server before the100-row list limit, with filters retained and stable tie-breaks. Your Bid uses only the authenticated member's own active/final bid; other sealed bids never affect this order. Fast sorting/filter changes are guarded against stale replies and retain the active control's focus. Unsaved auction publication fields stay intact. No writes or DKP changes occur when sorting.
+Includes all previous features. No DKP reservation, pricing, fairness or schema changes; migrations remain0000-0015. Every new/edited bid stays capped at the main's current balance; other bids do not reduce that cap. Officers separately confirm awards and negative balances remain allowed.
 
-Includes the0.12.1 Your Bid column with completely blank unbid/cancelled cells, the0.12 compact layout and officer Controls pills, and every0.11 import/filter/bid-summary/weapon-ratio feature. Minimum bid rules remain in bidding details. No reservation, pricing, fairness or schema change; no new migration after0015.
-
-Preserve data,companion/state,original Python/settings and custom GUILD_DESK_DB. Back up the stopped database before upgrading. Owner preview/live database remain untouched. Tests and verification metadata accompany the ZIP. No hosting deployment, GitHub tag or Release is claimed.
+Preserve data, companion/state, original Python/settings and custom GUILD_DESK_DB. Back up the stopped database before upgrading. This is a downloadable test build; no hosting deployment, GitHub tag or Release is claimed.

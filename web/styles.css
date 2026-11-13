@@ -448,3 +448,16 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
  .auction-management { padding:12px; }
  .history-filters { grid-template-columns:minmax(0,1fr); }
 }
+.auction-bid-totals{display:flex;flex-wrap:wrap;gap:.6rem 1.5rem;border:1px solid #438568;background:#17372d;padding:1rem;border-radius:10px;margin-bottom:1.2rem}
+.auction-bid-totals small{flex-basis:100%;color:var(--muted)}
+.auction-row.bid-placed{border-color:#61c893;background:#17372d;box-shadow:inset 4px 0 #61c893}
+.auction-row.bid-placed .item-link,.bid-tag{color:#a8efc5}
+.bid-tag{border-color:#61c893;background:#214e39}
+.wishlist-import{border-top:1px solid var(--border);padding-top:1.4rem}
+.wishlist-import form>label{display:block;margin-bottom:1rem}
+.wishlist-import textarea{width:100%;min-height:8rem}
+.wishlist-import select{max-width:100%}
+.import-row-removed{opacity:.65}
+.import-row-removed td:first-child{text-decoration:line-through}
+.eq-weapon-stats .eq-stats,.eq-elemental-stats .eq-stats{display:flex;flex-wrap:wrap;gap:.5rem 1.3rem}
+.eq-weapon-stats{font-weight:700;color:#f3dda0}

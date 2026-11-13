@@ -44,3 +44,10 @@ There are no reservations and no sum across auctions: a main with35 DKP can bid3
 ## Personal outcomes and guild archive (0.9)
 
 GET /api/my-auctions?outcome=won|lost&offset=0 returns only the signed-in account final active settled bids. Lost uses the lowest winning bid, not award price, with eligible=false/gap=null for ineligible bids and zero gap for ties. Won includes holdingLooters from retained imported custody; multiple holders are not assigned arbitrarily to recipients. GET /api/loot-history is read-only under Auctions/Auction management read permission, with q,class,slot,type,winner,boss,from,to,status and offset filters. Live/cancelled outcomes and custody are excluded from this guild archive.
+# Live filters and your active bids (0.11.0)
+
+Guild auctions updates after class/slot/status selection and after a short typing pause in Item name. The results refresh in place, preserving keyboard focus and unsaved officer publication fields. Failed updates keep the previous results with an error; stale requests cannot replace a newer filter or account session.
+
+Green rows and a You have bid label identify your active open bids. A gold On your wish list badge remains when both apply. The top summary counts your active auction items and sums full bid amounts across all currently open auctions, even when filters or the 100-row display limit hide them. Withdrawn, cancelled, closed and expired auctions do not contribute. GET /api/auctions returns activeBidSummary {count,totalDkp}; totalDkp is an exact decimal string. These values are scoped to the signed-in account and never reveal other live bidders.
+
+The total is potential full-price spending, not a reservation, combined bid cap or prediction of final charges. Individual bids still cannot exceed current main DKP; officers confirm final charges separately and balances may become negative.

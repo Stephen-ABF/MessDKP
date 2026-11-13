@@ -45,10 +45,10 @@ function publicText(text,file){
 const files=new Map();
 for(const file of records)files.set(file,publicText(await readFile(path.join(root,file),'utf8'),file));
 const packageInfo=JSON.parse(files.get('package.json'));
-if(packageInfo.version!=='0.10.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
+if(packageInfo.version!=='0.11.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
 packageInfo.scripts={...packageInfo.scripts,build:'node build.mjs --local',test:'node --test'};
 files.set('package.json',JSON.stringify(packageInfo,null,2)+'\n');
-files.set('README.md',`# Guild Desk 0.10.0
+files.set('README.md',`# Guild Desk 0.11.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -70,7 +70,11 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.10
+## New in 0.11
+
+Wish lists accept reviewed item-name imports from paste/TXT/CSV/TSV, with exact uploaded-catalog matching, row removal and explicit approval. Auction filters update in place; green rows identify your open bids and a private summary totals their full bid amounts across all current auctions. Weapon details show base and elemental-inclusive ratios using uploaded data. See WISHLIST.md, AUCTIONS.md and CATALOG.md. No new migration after0015 is required.
+
+## Previous raid deletion and wish lists (0.10)
 
 Officers can preview and permanently delete an erroneous raid with a reason, exact typed name and confirmation. The single atomic deletion removes linked attendance/ticks/clones, earned DKP and loot charges, requests, drafts/auctions and imported custody, while retaining officer audit and protecting other raids. Custom permissions for linked loot, auction and capture workspaces are enforced.
 
@@ -104,7 +108,7 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.10.0 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.11.0 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.
 `);
@@ -114,7 +118,7 @@ const extras=Array.from({length:27},(_,index)=>'Demochar'+letters(index));
 function artificialRoster(names){return names.map(name=>{const index=name==='Mainhero'?0:name==='Secondhero'?1:extras.indexOf(name)+2;return[name,'80',classes[index%classes.length],'Demo Member','','01/01/26','Demo Zone','Artificial example; not an ownership claim','','on','off',String(1000+index),'01/01/26','Artificial example; not an ownership claim',''].join('\t');}).join('\n')+'\n';}
 files.set('tests/fixtures/DemoGuild_test-20261111-180515(1).txt',artificialRoster(['Mainhero',...extras.slice(0,25)]));
 files.set('tests/fixtures/DemoGuild_test-20261111-182058(1).txt',artificialRoster(['Mainhero','Secondhero',...extras]));
-files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.10.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
+files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.11.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
 
 let inputIsPublic=false;try{inputIsPublic=JSON.parse(await readFile(path.join(root,'PUBLIC_SOURCE.json'),'utf8')).syntheticSamples===true;}catch{}
 for(const [file,text]of files){

@@ -1,4 +1,4 @@
-# Guild Desk 0.12.1
+# Guild Desk 0.12.2
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -20,7 +20,11 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.12.1
+## New in 0.12.2
+
+Click Item ID, Item name, Copies, Your Bid or Time left to sort. Click again to reverse. Your Bid starts highest first, name starts A-Z, and blank bids stay last. Sorting happens on the server before the100-row display limit and preserves filters. Phone-width screens have Sort by/Direction controls.
+
+## Your Bid column (0.12.1)
 
 Your Bid replaces the minimum-bid list column. It shows only your own recorded amount, and is blank when you have no bid. The compact layout and all0.11 improvements remain included.
 
@@ -66,6 +70,6 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.12.1 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.12.2 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.

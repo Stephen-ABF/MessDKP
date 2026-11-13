@@ -518,3 +518,12 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 @media(pointer:coarse){.auction-view-button,.auction-controls-menu>summary,.auction-controls-options button{min-height:44px}}
 
 .auction-your-bid:empty::before{content:none;display:none}
+
+/* Clickable sort headings retain the approved larger typography. */
+.auction-table thead th .auction-sort-button{font:inherit;color:inherit;background:transparent;border:0;border-radius:4px;padding:2px 0;display:inline-flex;align-items:center;gap:5px;text-align:left;white-space:nowrap}
+.auction-sort-arrow{font-size:12px;color:var(--muted)}
+.auction-table th[aria-sort="ascending"] .auction-sort-arrow,.auction-table th[aria-sort="descending"] .auction-sort-arrow{color:var(--accent)}
+.auction-table .auction-id-column{width:92px}.auction-table .auction-copies-column{width:96px}.auction-table .auction-bid-column{width:120px}.auction-table .auction-time-column{width:128px}
+.auction-mobile-sort{display:none}
+@media(max-width:1150px) and (min-width:701px){.auction-table .auction-id-column{width:88px}.auction-table .auction-copies-column{width:86px}.auction-table .auction-bid-column{width:106px}.auction-table .auction-time-column{width:112px}}
+@media(max-width:700px){.auction-table thead{display:none}.auction-mobile-sort{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:12px 0}.auction-mobile-sort label{font-size:12px}.auction-mobile-sort select{width:100%;margin-top:5px}.auction-table thead th .auction-sort-button{min-height:0}}

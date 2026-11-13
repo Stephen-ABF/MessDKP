@@ -5,6 +5,7 @@ const itemDetailsCache = new Map();
 const attendanceClonePreviews = new Map();
 let lootHistoryFilters={q:'',class:'',slot:'',type:'',winner:'',boss:'',from:'',to:'',status:'',offset:0};
 let comparisonContext=null, comparisonVersion=0;
+let auctionSort={key:'publishedAt',direction:'desc'};
 let auctionTab='current', personalAuctionOffset=0;
 let wishlistImport=null, wishlistImportVersion=0, auctionFilterTimer=null, auctionFilterVersion=0;
 let wishlistState={expansion:'Underfoot',query:'',results:[]};
@@ -91,7 +92,7 @@ function setSession(user, csrfToken = '', access = null) {
   if ((state.user?.id ?? null) !== (user?.id ?? null) || state.csrfToken !== csrfToken) {
     closeAuctionControl();clearWishlistImport();clearTimeout(auctionFilterTimer);auctionFilterVersion++;state.sessionEpoch++; state.generation++; clearInterval(countdownTimer); countdownTimer = null;
     clearCapturePairing(); stopCompanionPolling(); attendanceClonePreviews.clear();
-    closeItemSurfaces(); wishlistState={expansion:'Underfoot',query:'',results:[]};comparisonContext=null;comparisonVersion++;auctionTab='current';personalAuctionOffset=0;lootHistoryFilters={q:"",class:"",slot:"",type:"",winner:"",boss:"",from:"",to:"",status:"",offset:0}; itemDetailsCache.clear(); state.characters = []; state.raids = []; state.items = []; state.currentAuction = null; state.adjustmentCharacters = []; state.importPayload = null; state.accessData = null; state.accessSearch = ''; state.companionDevices=[];state.catalogStatus=null;state.spellNamesStatus=null;state.spellNamesOpen=false;state.raidLootPreview=null;state.raidLootImport=null;state.raidLootImportId=null;state.lootTab='raid-import';state.raidLootEventPage=0;state.inventoryCharacterId=null;state.inventoryPreview=null;state.inventoryResult=null;state.profileTab='overview'; state.preferredAttendanceRaid = null; state.auditFilters = {actorId:'',subjectUserId:'',characterId:'',action:'',q:'',from:'',to:'',limit:50,offset:0};
+    closeItemSurfaces(); wishlistState={expansion:'Underfoot',query:'',results:[]};comparisonContext=null;comparisonVersion++;auctionSort={key:'publishedAt',direction:'desc'};auctionTab='current';personalAuctionOffset=0;lootHistoryFilters={q:"",class:"",slot:"",type:"",winner:"",boss:"",from:"",to:"",status:"",offset:0}; itemDetailsCache.clear(); state.characters = []; state.raids = []; state.items = []; state.currentAuction = null; state.adjustmentCharacters = []; state.importPayload = null; state.accessData = null; state.accessSearch = ''; state.companionDevices=[];state.catalogStatus=null;state.spellNamesStatus=null;state.spellNamesOpen=false;state.raidLootPreview=null;state.raidLootImport=null;state.raidLootImportId=null;state.lootTab='raid-import';state.raidLootEventPage=0;state.inventoryCharacterId=null;state.inventoryPreview=null;state.inventoryResult=null;state.profileTab='overview'; state.preferredAttendanceRaid = null; state.auditFilters = {actorId:'',subjectUserId:'',characterId:'',action:'',q:'',from:'',to:'',limit:50,offset:0};
   }
   state.equipment = null; state.equipmentLoot = []; state.gearPicker = null;
   state.user = user; state.csrfToken = csrfToken; state.access = access || user?.access || null;
@@ -383,7 +384,7 @@ async function lootHistoryPage() {
 async function auctionWishMatches(){try{const data=await api('/wishlist/auction-matches');return new Set(data.itemIds||[]);}catch(error){if(error.silent)throw error;return new Set();}}
 async function auctionsPage() {
   const wishItemIds=await auctionWishMatches();
-  const query = new URLSearchParams(state.auctionFilters);
+  const query = new URLSearchParams({...state.auctionFilters,sort:auctionSort.key,direction:auctionSort.direction});
   const [data, references, settingsData] = await Promise.all([api(`/auctions?${query}`), can('auctionAdmin','write') ? api('/items?limit=100') : Promise.resolve({ items: [] }), can('auctionAdmin','write') ? api('/settings') : Promise.resolve(null)]);
   const selected = references.items.find(item => item.itemId === state.auctionDraftItemId);
   const unknown = Boolean(selected && selected.name === null);
@@ -398,9 +399,24 @@ function auctionControlsPill(auction){
  if(!can('auctionAdmin','write')||auction.status!=='open')return '';
  return `<details class="auction-controls-menu"><summary aria-label="Officer controls for ${escape(auction.itemName)}">Controls <span aria-hidden="true">⌄</span></summary><div class="auction-controls-options">${[['cancel-bid','Cancel a character bid'],['cancel','Cancel auction'],['complete-early','Complete now (testing)']].map(([action,label])=>`<button type="button" data-action="auction-control" data-management="${action}" data-auction="${escape(auction.id)}">${label}</button>`).join('')}</div></details>`;
 }
+const auctionSortLabels={publishedAt:'Published',itemId:'Item ID',itemName:'Item name',quantity:'Copies',ownBid:'Your Bid',closesAt:'Time left'};
+function auctionSortHeading(key,label){
+ const selected=auctionSort.key===key,order=selected?(auctionSort.direction==='asc'?'ascending':'descending'):'none',arrow=selected?(auctionSort.direction==='asc'?'↑':'↓'):'↕';
+ return `<th scope="col" aria-sort="${order}"><button type="button" class="auction-sort-button" data-action="sort-auctions" data-sort="${key}" aria-label="Sort by ${escape(auctionSortLabels[key])}">${label}<span class="auction-sort-arrow" aria-hidden="true">${arrow}</span></button></th>`;
+}
+function auctionMobileSorting(){return `<div class="auction-mobile-sort"><label>Sort by<select id="auction-sort-key">${Object.entries(auctionSortLabels).map(([key,label])=>`<option value="${key}" ${auctionSort.key===key?'selected':''}>${label}</option>`).join('')}</select></label><label>Direction<select id="auction-sort-direction"><option value="asc" ${auctionSort.direction==='asc'?'selected':''}>Ascending</option><option value="desc" ${auctionSort.direction==='desc'?'selected':''}>Descending</option></select></label></div>`;}
+async function changeAuctionSort(key,direction=null,element=null){
+ if(!Object.hasOwn(auctionSortLabels,key))return;
+ const defaultDirection=['ownBid','quantity','publishedAt'].includes(key)?'desc':'asc';
+ const nextDirection=direction|| (auctionSort.key===key?(auctionSort.direction==='asc'?'desc':'asc'):defaultDirection);if(!['asc','desc'].includes(nextDirection))return;
+ auctionSort={key,direction:nextDirection};clearTimeout(auctionFilterTimer);const version=++auctionFilterVersion,form=$('[data-form="filter-auctions"]');if(!form)return;
+ const selector=element?.id?'#'+element.id:'[data-action="sort-auctions"][data-sort="'+key+'"]';
+ await refreshAuctionFilters(form,version,{element,selector});
+}
+
 function auctionResults(data,wishItemIds){
  if(!data.auctions.length)return empty('No matching auctions',can('auctionAdmin','write')?'Publish an auction above or change the filters.':'An officer will publish loot here. You can also change the filters to review closed auctions.');
- return `<div class="auction-table-wrap"><table class="auction-table"><caption class="auction-visually-hidden">Guild auction items, copy counts, your bids and deadlines</caption><colgroup><col class="auction-id-column"><col><col class="auction-copies-column"><col class="auction-bid-column"><col class="auction-time-column"><col class="auction-actions-column"></colgroup><thead><tr>${['Item ID','Item','Copies','Your Bid','Time left','Actions'].map(label=>`<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data.auctions.map(auction=>{
+ return `${auctionMobileSorting()}<div class="auction-table-wrap"><table class="auction-table"><caption class="auction-visually-hidden">Guild auction items, copy counts, your bids and deadlines</caption><colgroup><col class="auction-id-column"><col><col class="auction-copies-column"><col class="auction-bid-column"><col class="auction-time-column"><col class="auction-actions-column"></colgroup><thead><tr>${[['itemId','Item ID'],['itemName','Item'],['quantity','Copies'],['ownBid','Your Bid'],['closesAt','Time left']].map(([key,label])=>auctionSortHeading(key,label)).join('')}<th scope="col">Actions</th></tr></thead><tbody>${data.auctions.map(auction=>{
  const personalBid=auction.status==='cancelled'?null:auction.ownBid;
  const wanted=auction.status==='open'&&wishItemIds.has(auction.itemId),own=auction.status==='open'&&auction.ownBid,classes=Array.isArray(auction.classes)&&auction.classes.includes('ALL')?'ALL':Array.isArray(auction.classes)&&auction.classes.length>3?auction.classes.slice(0,2).join(', ')+' +'+(auction.classes.length-2):metadataList(auction.classes);
  const metadata=[`<span class="auction-slot" title="Equipment slots: ${escape(metadataList(auction.slots))}">${escape(metadataList(auction.slots))}</span>`,`<span class="auction-class-summary" title="Usable classes: ${escape(metadataList(auction.classes))}">${escape(classes)}</span>`,auction.status==='open'?'':`<span class="auction-status">${escape(auction.status)}</span>`,own?`<span class="tag bid-tag" aria-label="You have bid ${escape(number(own.amount))} DKP">Bid ${escape(number(own.amount))}</span>`:'',wanted?'<span class="tag wish-tag" aria-label="On your wish list">Wish list</span>':'',auction.metadataStatus==='unresolved'?'<span class="tag warning">Officer-supplied name</span>':'',auction.status==='closed'&&auction.resultsReady?`<span class="auction-award-status">${escape(number(auction.confirmedAwardCount))}/${escape(number(auction.awardCount))} confirmed</span>`:''].filter(Boolean).join('');
@@ -418,13 +434,14 @@ function scheduleAuctionFilters(form,delay=0){
  state.auctionFilters=Object.fromEntries(['q','class','slot','status'].map(key=>[key,String(form.elements.namedItem(key)?.value|| (key==='status'?'open':'')).trim()]));
  auctionFilterTimer=setTimeout(()=>refreshAuctionFilters(form,version),delay);
 }
-async function refreshAuctionFilters(form,version){
+async function refreshAuctionFilters(form,version,focusContext={}){
  const generation=state.generation,epoch=state.sessionEpoch,results=$('#auction-results'),summary=$('#auction-bid-summary'),status=$('#auction-filter-status');
  const current=()=>form.isConnected&&version===auctionFilterVersion&&generation===state.generation&&epoch===state.sessionEpoch;
  if(!results||!current())return;results.setAttribute('aria-busy','true');if(status)status.textContent='Updating auctions…';
  try{
-  const [data,wishes]=await Promise.all([api('/auctions?'+new URLSearchParams(state.auctionFilters)),auctionWishMatches()]);if(!current())return;
-  closeItemSurfaces();results.innerHTML=auctionResults(data,wishes);if(summary)summary.innerHTML=auctionBidSummary(data.activeBidSummary);applyAccessControls(results);startCountdowns();
+  const [data,wishes]=await Promise.all([api('/auctions?'+new URLSearchParams({...state.auctionFilters,sort:auctionSort.key,direction:auctionSort.direction})),auctionWishMatches()]);if(!current())return;
+  const restoreFocus=focusContext.element&&document.activeElement===focusContext.element;
+  closeItemSurfaces();results.innerHTML=auctionResults(data,wishes);if(summary)summary.innerHTML=auctionBidSummary(data.activeBidSummary);applyAccessControls(results);startCountdowns();if(restoreFocus)$(focusContext.selector,results)?.focus({preventScroll:true});
   if(status)status.textContent=`${number(data.auctions.length)} matching auctions. Filters update automatically.`;
  }catch(error){if(current()&&!error.silent&&status)status.textContent=error.message+' Showing the previous results.';}
  finally{if(current())results.removeAttribute('aria-busy');}
@@ -1059,6 +1076,7 @@ document.addEventListener('click', async event => {
       case 'open-tick': flash(''); await navigate('attendance', action.dataset.raid, action.dataset.tick); break;
       case 'character-registry': await navigate('characters'); break;
       case 'character-create': await navigate('characters', 'create'); break;
+      case 'sort-auctions':await changeAuctionSort(action.dataset.sort,null,action);break;
       case 'auction-control': await openAuctionControl(action);break;
       case 'close-auction-control': closeAuctionControl();break;
       case 'open-auction': flash(''); await navigate('auctions', action.dataset.auction); break;
@@ -1157,6 +1175,7 @@ document.addEventListener('input', event => {
   }
 });
 document.addEventListener('change', event => {
+  if(event.target.id==='auction-sort-key'||event.target.id==='auction-sort-direction'){changeAuctionSort($('#auction-sort-key').value,$('#auction-sort-direction').value,event.target).catch(error=>{if(!error.silent)flash(error.message,true);});return;}
   const auctionFilters=event.target.closest?.('[data-form="filter-auctions"]');if(auctionFilters)scheduleAuctionFilters(auctionFilters,0);
   if(event.target.closest?.('[data-form="preview-wishlist-import"]'))clearWishlistImport();
   if(event.target.name==='importChoice'){const row=wishlistImport?.rows.find(r=>r.index===Number(event.target.dataset.row));if(row&&!wishlistImport.saving){row.itemId=Number(event.target.value)||null;row.error=null;renderWishlistImport();$('#wishlist-import-review [name="importChoice"][data-row="'+row.index+'"]')?.focus({preventScroll:true});}}

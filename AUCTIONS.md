@@ -61,3 +61,9 @@ An officer Controls pill sits beside View / bid for open auctions only. Its acti
 ## Your Bid column (0.12.1)
 
 The former Min. bid column is now Your Bid. It displays only the signed-in member's recorded bid amount. Rows without an active/final own bid are blank; cancelled auctions are blank. No zero, dash, DKP unit or mobile label appears in an empty cell. Green highlighting still applies to your open bids. Auction minimums and per-bid rules remain available in the bidding details and publication form. No backend, pricing, reservation or DKP policy changed.
+
+## Sorting (0.12.2)
+
+Click Item ID, Item, Copies, Your Bid or Time left to sort; click the same heading to reverse direction. First click uses A-Z for name, ascending for ID/deadline, and highest first for copies/Your Bid. Blank own bids stay last in either direction. Actions is not a sortable data column. Mobile has Sort by and Direction selectors. Selected headers expose aria-sort and retain keyboard focus after the response when focus has not moved elsewhere.
+
+GET /api/auctions accepts sort=publishedAt|itemId|itemName|quantity|ownBid|closesAt and direction=asc|desc. Default remains newest published. Sort expressions/directions are strictly allowlisted; ownBid is bound to the authenticated user and excludes inactive/cancelled bids. Case-insensitive item-name ordering and deterministic publication/ID tie-breaks precede LIMIT100. Filters and global own active-bid totals are retained; stale responses cannot replace a newer request or account. Sorting performs no writes.

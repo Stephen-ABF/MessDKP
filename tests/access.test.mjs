@@ -6,8 +6,9 @@ import {createD1} from './d1-adapter.mjs';
 const read=name=>readFileSync(new URL('../worker/'+name,import.meta.url),'utf8');
 const origin='https://guild.test',matrix=level=>Object.fromEntries(ACCESS_AREAS.map(({key})=>[key,level]));
 function fixture(){
- const DB=createD1(read('schema.sql')+'\n'+read('access.sql'));
- for(const[id,role]of[['admin','admin'],['member','member'],['other','member']])DB.raw.prepare('INSERT INTO users VALUES(?,?,?,?,?,?,?)').run(id,id+'@fixture.test',id,'private-hash','private-salt',role,'2026-11-12');
+ const DB=createD1(read('schema.sql')+'\n'+read('access.sql')+'\n'+read('account-safety.sql'));
+ for(const[id,role]of[['admin','admin'],['member','member'],['other','member']])DB.raw.prepare('INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES(?,?,?,?,?,?,?)').run(id,id+'@fixture.test',id,'private-hash','private-salt',role,'2026-11-12');
+ DB.raw.prepare('UPDATE access_profiles SET revision=1').run();
  const call=async(path='/api/access',{method='GET',data,user='admin',headers={},body}={})=>{const response=await handleAccessApi(new Request(origin+path,{method,headers:{Origin:origin,'Content-Type':'application/json','X-CSRF-Token':'token',...headers},...(['GET','HEAD'].includes(method)?{}:{body:body??JSON.stringify(data)})}),{DB},{user:user?{id:user,role:'admin'}:null,csrfToken:'token',access:{permissions:matrix(3)}});return{status:response.status,body:await response.json()};};
  const assign=(id,profileId,overrides={},expectedRevision=0,extra={})=>call('/api/access/users/'+id,{method:'PUT',data:{profileId,overrides,expectedRevision},...extra});
  const edit=(id,permissions,name=id,expectedRevision=1,extra={})=>call('/api/access/profiles/'+id,{method:'PUT',data:{name,permissions,expectedRevision},...extra});
@@ -25,7 +26,7 @@ test('default member and administrator permissions come from current database ro
 }finally{h.close();}});
 
 test('access GET returns safe editor DTOs, all templates and current resolved permissions',async()=>{const h=fixture();try{
- const r=await h.call();assert.equal(r.status,200);assert.deepEqual(r.body.profiles.map(p=>p.id),['admin','officer','member']);assert.equal(r.body.areas.length,16);assert.deepEqual(r.body.levels.map(l=>l.value),[0,1,2,3]);assert.equal(r.body.users.length,3);assert.equal(r.body.users.find(u=>u.id==='member').revision,0);
+ const r=await h.call();assert.equal(r.status,200);assert.deepEqual(r.body.profiles.map(p=>p.id),['admin','officer','member']);assert.equal(r.body.areas.length,17);assert.deepEqual(r.body.levels.map(l=>l.value),[0,1,2,3]);assert.equal(r.body.users.length,3);assert.equal(r.body.users.find(u=>u.id==='member').revision,0);
  assert.equal(JSON.stringify(r.body).includes('private-hash'),false);assert.equal(JSON.stringify(r.body).includes('private-salt'),false);assert.equal(h.audits().length,0);
  assert.equal(r.body.profiles.find(p=>p.id==='officer').permissions.access,0);assert.ok(Object.entries(r.body.profiles.find(p=>p.id==='officer').permissions).filter(([k])=>k!=='access').every(([,v])=>v===3));
 }finally{h.close();}});
@@ -94,18 +95,18 @@ test('audit failure rolls profile and assignment changes back without financial 
 test('transaction guard resolves current profile plus overrides and denies revoked permissions',async()=>{const h=fixture();try{
  assert.equal((await h.assign('member','officer',{ledger:3})).status,200);assert.equal(canAccess(await resolveAccess(h.DB,{id:'member'}),'ledger','write'),true);
  assert.equal((await h.assign('member','officer',{ledger:0},1)).status,200);
- const guard=h.DB.prepare('INSERT INTO access_operation_guards VALUES(?,?,?,?)').bind('revoked-write','member','ledger',3);
+ const guard=h.DB.prepare('INSERT INTO access_operation_guards(operation_id,user_id,area,minimum_level) VALUES(?,?,?,?)').bind('revoked-write','member','ledger',3);
  await assert.rejects(h.DB.batch([guard]),/ACCESS_DENIED/);assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM access_operation_guards').get().n,0);
  const current=JSON.parse(h.DB.raw.prepare("SELECT permissions_json FROM access_effective_permissions WHERE user_id='member'").get().permissions_json);assert.equal(current.ledger,0);assert.equal(current.claims,3);
- await h.DB.batch([h.DB.prepare('INSERT INTO access_operation_guards VALUES(?,?,?,?)').bind('valid-write','member','claims',3),h.DB.prepare('DELETE FROM access_operation_guards WHERE operation_id=?').bind('valid-write')]);assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM access_operation_guards').get().n,0);
+ await h.DB.batch([h.DB.prepare('INSERT INTO access_operation_guards(operation_id,user_id,area,minimum_level) VALUES(?,?,?,?)').bind('valid-write','member','claims',3),h.DB.prepare('DELETE FROM access_operation_guards WHERE operation_id=?').bind('valid-write')]);assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM access_operation_guards').get().n,0);
 }finally{h.close();}});
 
 test('denied operation guard atomically rolls back financial and audit mutations',async()=>{const h=fixture();try{
  h.DB.raw.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,?,?)').run('hero','hero','Hero',85,'Cleric','Raider','main','member','2026-11-12');
  const ledger=h.DB.prepare('INSERT INTO ledger VALUES(?,?,?,?,?,?,?,?)').bind('blocked-charge','hero',null,-20,'Fixture charge','member','2026-11-12','blocked-op');
- const denied=h.DB.prepare('INSERT INTO access_operation_guards VALUES(?,?,?,?)').bind('blocked-op','member','auctionAdmin',3);
+ const denied=h.DB.prepare('INSERT INTO access_operation_guards(operation_id,user_id,area,minimum_level) VALUES(?,?,?,?)').bind('blocked-op','member','auctionAdmin',3);
  const audit=h.DB.prepare('INSERT INTO audit VALUES(?,?,?,?,?)').bind('blocked-audit','member','fixture_charge','{}','2026-11-12');
  await assert.rejects(h.DB.batch([ledger,audit,denied]),/ACCESS_DENIED/);assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM ledger').get().n,0);assert.equal(h.audits().length,0);assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM access_operation_guards').get().n,0);
- const allowed=h.DB.prepare('INSERT INTO access_operation_guards VALUES(?,?,?,?)').bind('permitted-op','admin','auctionAdmin',3),charge=h.DB.prepare('INSERT INTO ledger VALUES(?,?,?,?,?,?,?,?)').bind('charge','hero',null,-20,'Fixture charge','admin','2026-11-12','permitted-op'),cleanup=h.DB.prepare('DELETE FROM access_operation_guards WHERE operation_id=?').bind('permitted-op');
+ const allowed=h.DB.prepare('INSERT INTO access_operation_guards(operation_id,user_id,area,minimum_level) VALUES(?,?,?,?)').bind('permitted-op','admin','auctionAdmin',3),charge=h.DB.prepare('INSERT INTO ledger VALUES(?,?,?,?,?,?,?,?)').bind('charge','hero',null,-20,'Fixture charge','admin','2026-11-12','permitted-op'),cleanup=h.DB.prepare('DELETE FROM access_operation_guards WHERE operation_id=?').bind('permitted-op');
  await h.DB.batch([allowed,charge,cleanup]);assert.equal(h.DB.raw.prepare('SELECT SUM(amount) n FROM ledger').get().n,-20);assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM access_operation_guards').get().n,0);
 }finally{h.close();}});

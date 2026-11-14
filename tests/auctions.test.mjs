@@ -127,3 +127,6 @@ test('pagination exposes every matching auction beyond 100 in global sort order 
  for(const query of ['limit=0','limit=101','limit=1.5','offset=-1','offset=1000001','offset=9007199254740992','limit=2&limit=3','offset=0&offset=1'])assert.equal((await h.call('/api/auctions?'+query)).status,400,query);
  assert.equal(h.DB.raw.prepare('SELECT COUNT(*) n FROM ledger').get().n,6);
 }finally{h.close();}});
+
+
+test('slot options are queried only when explicitly opening auction filters',async()=>{const h=harness();try{await auction(h);let slotQueries=0;const prepare=h.DB.prepare.bind(h.DB);h.DB.prepare=query=>{if(query.includes('SELECT DISTINCT upper(j.value)'))slotQueries++;return prepare(query);};assert.equal((await h.call('/api/auctions')).body.slots,undefined);assert.equal(slotQueries,0);assert.ok(Array.isArray((await h.call('/api/auctions?includeSlots=1')).body.slots));assert.equal(slotQueries,1);await h.call('/api/auctions?q=Sample&sort=itemName&limit=25&offset=0');assert.equal(slotQueries,1);}finally{h.close();}});

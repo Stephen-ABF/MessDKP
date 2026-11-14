@@ -1,10 +1,10 @@
+import {HttpError as RaidDeletionError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 const deletionJson=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
-class RaidDeletionError extends Error{constructor(status,code,message){super(message);this.status=status;this.code=code;}}
 const deletionFail=(status,code,message)=>{throw new RaidDeletionError(status,code,message);};
 const deletionSql=(db,query,...params)=>db.prepare(query).bind(...params);
 const targetSql=kind=>`SELECT id FROM raid_delete_targets WHERE operation_id=? AND kind='${kind}'`;
 async function deletionPermissions(db,userId,counts){const row=await deletionSql(db,'SELECT permissions_json FROM access_effective_permissions WHERE user_id=?',userId).first();let permissions;try{permissions=JSON.parse(row?.permissions_json||'{}');}catch{permissions={};}const required=['attendance',...(counts.drafts||counts.imports||counts.groups?['loot']:[]),...(counts.auctions?['auctionAdmin']:[]),...(counts.captures?['captures']:[])];if(required.some(area=>permissions[area]!==3))deletionFail(403,'forbidden','Raid deletion requires write access to attendance and every linked loot, auction or capture workspace.');}
-async function deletionBody(request){if(!request.headers.get('content-type')?.startsWith('application/json'))deletionFail(415,'content_type','Send JSON deletion details.');const reader=request.body?.getReader(),decoder=new TextDecoder();let text='',size=0;try{if(reader)while(true){const{value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>8192){await reader.cancel().catch(()=>{});deletionFail(413,'too_large','Keep deletion details under 8 KiB.');}text+=decoder.decode(value,{stream:true});}text+=decoder.decode();}finally{reader?.releaseLock();}let data;try{data=JSON.parse(text);}catch{deletionFail(400,'validation','Send valid deletion details.');}if(!data||Array.isArray(data)||typeof data!=='object')deletionFail(400,'validation','Send deletion details as an object.');return data;}
+const deletionBody=(request)=>readJson(request,{limit:8192,sizeMessage:'Keep deletion details under 8 KiB.',contentMessage:'Send JSON deletion details.',jsonMessage:'Send valid deletion details.',jsonCode:'validation'});
 async function raidDeletionPreview(db,raidId){
  const q=(text,...values)=>deletionSql(db,text,...values);
  const result=await db.batch([

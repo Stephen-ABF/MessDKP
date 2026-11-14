@@ -1,5 +1,6 @@
+import {HttpError as AccessError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 export const ACCESS_AREAS=Object.freeze([
- ['overview','Overview'],['characters','Characters'],['mains','Mains and attendance'],['corrections','Missing attendance'],['correctionReview','Attendance request review'],['auctions','Auctions'],['auctionAdmin','Auction management'],['attendance','Attendance records'],['ledger','DKP ledger'],['items','Item references'],['captures','Log companion'],['loot','Loot preparation'],['claims','Character claims'],['settings','Settings'],['audit','Audit log'],['access','Access management']
+ ['accounts','Account management'],['overview','Overview'],['characters','Characters'],['mains','Mains and attendance'],['corrections','Missing attendance'],['correctionReview','Attendance request review'],['auctions','Auctions'],['auctionAdmin','Auction management'],['attendance','Attendance records'],['ledger','DKP ledger'],['items','Item references'],['captures','Log companion'],['loot','Loot preparation'],['claims','Character claims'],['settings','Settings'],['audit','Audit log'],['access','Access management']
 ].map(([key,label])=>Object.freeze({key,label})));
 export const ACCESS_LEVELS=Object.freeze(['None','View','Read','Write'].map((label,value)=>Object.freeze({value,label})));
 const areaKeys=new Set(ACCESS_AREAS.map(a=>a.key));
@@ -7,7 +8,6 @@ const validLevel=value=>Number.isInteger(value)&&value>=0&&value<=3;
 const sql=(db,query,...params)=>db.prepare(query).bind(...params);
 const all=async statement=>(await statement.all()).results;
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
-class AccessError extends Error{constructor(status,code,message){super(message);this.status=status;this.code=code;}}
 const fail=(status,code,message)=>{throw new AccessError(status,code,message);};
 function decode(value){try{const v=JSON.parse(value);return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch{return{};}}
 function permissions(profile,overrides={}){return Object.fromEntries(ACCESS_AREAS.map(({key})=>{const value=Object.hasOwn(overrides,key)?overrides[key]:profile[key];return[key,validLevel(value)?value:0];}));}
@@ -23,14 +23,7 @@ export function canAccess(access,area,level='view'){
  const minimum=typeof level==='string'?{view:1,read:2,write:3}[level]:level;
  return areaKeys.has(area)&&Number.isInteger(minimum)&&minimum>=1&&minimum<=3&&validLevel(access?.permissions?.[area])&&access.permissions[area]>=minimum;
 }
-async function body(request){
- if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail(415,'content_type','Send JSON access settings.');
- if(Number(request.headers.get('content-length')||0)>8192)fail(413,'too_large','Access requests must be at most 8 KiB.');
- const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;
- if(reader){try{while(true){const{value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>8192){await reader.cancel().catch(()=>{});fail(413,'too_large','Access requests must be at most 8 KiB.');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}
- let value;try{value=JSON.parse(raw);}catch{fail(400,'invalid_json','Send valid JSON access settings.');}
- if(!value||typeof value!=='object'||Array.isArray(value))fail(400,'validation','Access settings must be an object.');return value;
-}
+const body=request=>readJson(request,{limit:8192,sizeMessage:'Access requests must be at most 8 KiB.',jsonMessage:'Send valid JSON access settings.',objectCode:'validation'});
 function nameInput(value){if(typeof value!=='string'||!value.trim()||value.trim().length>80||/[\u0000-\u001f\u007f]/.test(value))fail(400,'validation','Profile name must contain 1–80 printable characters.');return value.trim();}
 function matrix(value,partial=false){
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!areaKeys.has(k)||!validLevel(value[k]))||(!partial&&ACCESS_AREAS.some(({key})=>!Object.hasOwn(value,key))))fail(400,'validation',partial?'Overrides must use known areas and levels from 0 to 3.':'Supply a level from 0 to 3 for every access area.');

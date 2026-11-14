@@ -1,8 +1,8 @@
+import {HttpError as EquipmentError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 // Website equipment notes only. No inventory sync, gameplay or DKP side effects.
 export const EQUIPMENT_SLOTS=Object.freeze([
  ['charm','Charm','CHARM'],['ear1','Left ear','EAR'],['head','Head','HEAD'],['face','Face','FACE'],['ear2','Right ear','EAR'],['neck','Neck','NECK'],['shoulders','Shoulders','SHOULDERS'],['arms','Arms','ARMS'],['back','Back','BACK'],['wrist1','Left wrist','WRIST'],['wrist2','Right wrist','WRIST'],['ranged','Ranged','RANGE'],['hands','Hands','HANDS'],['primary','Primary','PRIMARY'],['secondary','Secondary','SECONDARY'],['finger1','Left finger','FINGER'],['finger2','Right finger','FINGER'],['chest','Chest','CHEST'],['legs','Legs','LEGS'],['feet','Feet','FEET'],['waist','Waist','WAIST'],['powerSource','Power source','POWER SOURCE'],['ammo','Ammo','AMMO']
 ].map(([key,label,sourceSlot])=>Object.freeze({key,label,sourceSlot})));
-class EquipmentError extends Error {constructor(status,code,message){super(message);this.status=status;this.code=code;}}
 const fail=(status,code,message)=>{throw new EquipmentError(status,code,message);};
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const sql=(db,query,...params)=>db.prepare(query).bind(...params);
@@ -11,10 +11,7 @@ const characterQuery="SELECT c.id,c.name,c.class_name AS className,c.kind,c.owne
 const slotQuery=`SELECT e.slot_key AS slotKey,e.item_id AS itemId,r.name AS itemName,r.advanced_loot AS advancedLoot,CASE WHEN e.source='award' AND NOT EXISTS(SELECT 1 FROM auction_awards w JOIN auctions a ON a.id=w.auction_id WHERE w.character_id=e.character_id AND a.item_id=e.item_id AND w.status='confirmed' AND a.cancelled_at_ms IS NULL) THEN 'reference' ELSE e.source END AS source,e.updated_at AS updatedAt,e.operation_id AS operationId FROM character_equipment e LEFT JOIN item_references r ON r.item_id=e.item_id WHERE e.character_id=?`;
 function slotShape(key,row){const definition=EQUIPMENT_SLOTS.find(s=>s.key===key);return {...definition,itemId:row?.itemId??null,itemName:row?.itemId?(row.itemName||'EQ Item '+row.itemId):null,source:row?.itemId?row.source:null,updatedAt:row?.updatedAt??null,...(row?.advancedLoot?{advancedLoot:row.advancedLoot}:{})};}
 async function input(request){
- if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail(415,'content_type','Send JSON equipment data.');
- const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;
- if(reader){try{while(true){const{value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>8192){await reader.cancel().catch(()=>{});fail(413,'too_large','Equipment requests must be at most 8 KiB.');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}
- let parsed;try{parsed=JSON.parse(raw);}catch{fail(400,'invalid_json','Send valid JSON equipment data.');}
+ const parsed=await readJson(request,{limit:8192,contentMessage:'Send JSON equipment data.',sizeMessage:'Equipment requests must be at most 8 KiB.',jsonMessage:'Send valid JSON equipment data.',objectCode:'validation'});
  if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||!Object.hasOwn(parsed,'itemId')||!Object.hasOwn(parsed,'expectedItemId')||!validItem(parsed.itemId)||!validItem(parsed.expectedItemId))fail(400,'validation','Supply itemId and expectedItemId as positive whole item IDs or null.');return parsed;
 }
 async function character(db,id,userId){const row=await sql(db,characterQuery,userId,id).first();if(!row)fail(404,'not_found','Character not found.');return row;}

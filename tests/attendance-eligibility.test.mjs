@@ -6,7 +6,7 @@ import {handleReportsApi} from '../worker/reports.mjs';
 const read=name=>readFileSync(new URL('../worker/'+name,import.meta.url),'utf8');
 function fixture(migrate=true){
  const DB=createD1(read('schema.sql')+(migrate?'\n'+read('attendance-eligibility.sql'):''));
- DB.raw.exec("INSERT INTO users VALUES('officer','officer@fixture.test','Officer','x','x','admin','2026-11-12');INSERT INTO users VALUES('member','member@fixture.test','Member','x','x','member','2026-11-12');");
+ DB.raw.exec("INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES('officer','officer@fixture.test','Officer','x','x','admin','2026-11-12');INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES('member','member@fixture.test','Member','x','x','member','2026-11-12');");
  const character=(id,owned=true)=>DB.raw.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,?,?)').run(id,id,id,85,'Cleric','Raider',owned?'main':'unclassified',owned?'member':null,owned?'2026-12-01':null);
  const raid=(id,date,times,sourceDate=date)=>{DB.raw.prepare('INSERT INTO raids VALUES(?,?,?,?,?,?)').run(id,id,date,5,'officer',date+'T00:00:00Z');return times.map((time,i)=>{const tick=id+'-'+i;DB.raw.prepare('INSERT INTO ticks VALUES(?,?,?,?,?,?,?,?,?,?)').run(tick,id,tick,tick+'.txt',sourceDate+'T'+time,'hash','raw',1,date+'T23:00:00Z',tick);return tick;});};
  const attend=(id,tick,status='pending')=>DB.raw.prepare('INSERT INTO attendance VALUES(?,?,?,?,?,?,?)').run(id+'-'+tick,tick,id,'Cleric','Test zone',status,5);

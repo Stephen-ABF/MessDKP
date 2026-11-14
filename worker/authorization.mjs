@@ -1,3 +1,4 @@
+import {isReadOnlySql} from './http.mjs';
 // The HTTP boundary owns area permissions. Resource owners are checked again by
 // the underlying mutation. Guards keep access revocation atomic with each batch.
 export class AuthorizationError extends Error {constructor(message='Your access profile does not permit this action.'){super(message);this.status=403;this.code='forbidden';}}
@@ -14,6 +15,7 @@ export async function authorizeRoute(request,db,auth){
  if(path==='/api/wishlist/auction-matches')return any(['auctions','auctionAdmin'],2);
  if((match=/^\/api\/raids\/[^/]+\/(delete-preview|delete)$/.exec(path)))return managed('attendance',3);
  if((match=/^\/api\/characters\/([^/]+)\/wishlist(?:\/(?:search|import-preview))?$/.exec(path))){if(!read){if(!await owned(match[1]))throw new AuthorizationError('Only the approved character owner can edit its wish list.');return any(['overview','mains'],3);}if(await owned(match[1]))return any(['overview','mains','characters'],2);return any(['mains','characters'],2);}
+ if(path==='/api/accounts'||path.startsWith('/api/accounts/'))return managed('accounts');
  if(path==='/api/dashboard')return one('overview',2);
  if(path==='/api/loot-history')return any(['auctions','auctionAdmin'],2);
  if(path==='/api/my-auctions')return any(['auctions','auctionAdmin'],2);
@@ -53,22 +55,28 @@ export async function authorizeRoute(request,db,auth){
  if(path==='/api/loot'||path.startsWith('/api/loot/'))return !read&&path.endsWith('/publish')?both('loot','auctionAdmin'):managed('loot');
  throw new AuthorizationError();
 }
-export function guardedDatabase(db,userId,grants){
+export function guardedDatabase(db,userId,grants,sessionFence={}){
  let denied=false;
  const rawStatement=Symbol('prepared');
- async function execute(statements){
-  const operations=grants.map(()=>crypto.randomUUID());
-  const before=grants.map((g,i)=>db.prepare('INSERT INTO access_operation_guards(operation_id,user_id,area,minimum_level) VALUES(?,?,?,?)').bind(operations[i],userId,g.area,g.level));
+ async function execute(statements,mutating=true){
+  if(!mutating){
+   const checks=grants.map(g=>db.prepare("SELECT 1 AS permitted FROM access_effective_permissions WHERE user_id=? AND json_type(permissions_json,'$.'||?)='integer' AND json_extract(permissions_json,'$.'||?) BETWEEN ? AND 3").bind(userId,g.area,g.area,g.level));
+   if(sessionFence.sessionTokenHash)checks.push(db.prepare("SELECT 1 AS permitted FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.user_id=? AND s.token_hash=? AND s.expires_at>(CAST(strftime('%s','now') AS INTEGER)*1000+CAST(substr(strftime('%f','now'),4,3) AS INTEGER)) AND u.account_status='active' AND u.reset_required=0 AND u.credential_revision=?").bind(userId,sessionFence.sessionTokenHash,sessionFence.credentialRevision));
+   const result=await db.batch([...checks,...statements]);if(result.slice(0,checks.length).some(r=>r.results[0]?.permitted!==1)){denied=true;throw new AuthorizationError('Your access changed. Refresh your session before retrying.');}return result.slice(checks.length);
+  }
+  const guardGrants=grants.length?grants:sessionFence.sessionTokenHash?[{area:'access',level:1}]:[];
+  const operations=guardGrants.map(()=>crypto.randomUUID());
+  const before=guardGrants.map((g,i)=>sessionFence.sessionTokenHash?db.prepare('INSERT INTO access_operation_guards(operation_id,user_id,area,minimum_level,session_token_hash,credential_revision) VALUES(?,?,?,?,?,?)').bind(operations[i],userId,g.area,g.level,sessionFence.sessionTokenHash,sessionFence.credentialRevision):db.prepare('INSERT INTO access_operation_guards(operation_id,user_id,area,minimum_level) VALUES(?,?,?,?)').bind(operations[i],userId,g.area,g.level));
   const after=operations.map(id=>db.prepare('DELETE FROM access_operation_guards WHERE operation_id=?').bind(id));
   try{const result=await db.batch([...before,...statements,...after]);return result.slice(before.length,before.length+statements.length);}
   catch(error){if(/ACCESS_DENIED/.test(String(error))){denied=true;throw new AuthorizationError('Your access changed. Refresh your session before retrying.');}throw error;}
  }
  class Statement{
-  constructor(raw){this[rawStatement]=raw;}
-  bind(...args){return new Statement(this[rawStatement].bind(...args));}
-  async first(column){const r=(await execute([this[rawStatement]]))[0].results[0];return r?(column?r[column]:r):null;}
-  async all(){return(await execute([this[rawStatement]]))[0];}
-  async run(){return(await execute([this[rawStatement]]))[0];}
+  constructor(raw,mutating){this[rawStatement]=raw;this.mutating=mutating;}
+  bind(...args){return new Statement(this[rawStatement].bind(...args),this.mutating);}
+  async first(column){const r=(await execute([this[rawStatement]],this.mutating))[0].results[0];return r?(column?r[column]:r):null;}
+  async all(){return(await execute([this[rawStatement]],this.mutating))[0];}
+  async run(){return(await execute([this[rawStatement]],this.mutating))[0];}
  }
- return{prepare(query){return new Statement(db.prepare(query));},batch(statements){return execute(statements.map(s=>s[rawStatement]??s));},get authorityDenied(){return denied;}};
+ return{cacheKey:db.cacheKey||db,prepare(query){return new Statement(db.prepare(query),!isReadOnlySql(query));},batch(statements){return execute(statements.map(s=>s[rawStatement]??s),statements.some(s=>s.mutating!==false));},get authorityDenied(){return denied;}};
 }

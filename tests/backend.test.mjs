@@ -1,10 +1,12 @@
+import {activeFixtureWorker,legacyAccountColumns} from './account-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {handleApi} from '../worker/api.mjs';
+import {handleApi as realHandleApi} from '../worker/api.mjs';
+const fixtureApi=activeFixtureWorker({fetch:realHandleApi});const handleApi=(...args)=>{legacyAccountColumns(args[1].DB);return fixtureApi.fetch(...args);};
 import {createD1} from './d1-adapter.mjs';
 const schema=readFileSync(new URL('../worker/schema.sql',import.meta.url),'utf8');
-function harness(){const DB=createD1(schema);return {DB,env:{DB},async call(path,method='GET',data,auth,extra={}){const headers={...extra};if(method==='POST'){headers.origin??='https://guild.test';headers['content-type']='application/json';}if(auth){headers.cookie=auth.cookie;headers['x-csrf-token']??=auth.csrfToken;}const response=await handleApi(new Request('https://guild.test'+path,{method,headers,...(data!==undefined?{body:JSON.stringify(data)}:{})}),{DB});const body=await response.json();return {status:response.status,body,headers:response.headers};},close(){DB.close();}};}
+function harness(){const DB=createD1(schema);legacyAccountColumns(DB);return {DB,env:{DB},async call(path,method='GET',data,auth,extra={}){const headers={...extra};if(method==='POST'){headers.origin??='https://guild.test';headers['content-type']='application/json';}if(auth){headers.cookie=auth.cookie;headers['x-csrf-token']??=auth.csrfToken;}const response=await handleApi(new Request('https://guild.test'+path,{method,headers,...(data!==undefined?{body:JSON.stringify(data)}:{})}),{DB});const body=await response.json();return {status:response.status,body,headers:response.headers};},close(){DB.close();}};}
 async function register(h,email,name='Member'){const r=await h.call('/api/register','POST',{email,name,password:'correct horse battery staple'});assert.equal(r.status,201,JSON.stringify(r.body));return {...r.body,cookie:r.headers.get('set-cookie').split(';')[0]};}
 function line(name,className='Cleric',rank='Raider',zone='Guild Hall'){return [name,'85',className,rank,'','11/11/26',zone,'Main - notes are not authority','','on','off','999,999','11/10/26','Main - notes are not authority',''].join('\t');}
 function file(time,names=['Alpha','Bravo'],suffix=''){return {name:`DemoGuild_test-20261111-${time}${suffix}.txt`,text:names.map(n=>typeof n==='string'?line(n):line(...n)).join('\n')+'\n'};}

@@ -1,18 +1,13 @@
+import {HttpError as DeviceError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 // Persistent, capture-only native device authorization. No browser sessions or DKP.
 const deviceJson=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
-class DeviceError extends Error{constructor(status,code,message){super(message);this.status=status;this.code=code;}}
 const deviceFail=(status,code,message)=>{throw new DeviceError(status,code,message);};
 const deviceSql=(db,q,...values)=>db.prepare(q).bind(...values);
 const deviceHash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),v=>v.toString(16).padStart(2,'0')).join('');
 const deviceSecret=prefix=>prefix+Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join('');
 const deviceAllowed=(identity,minimum=3)=>"EXISTS(SELECT 1 FROM access_effective_permissions acl WHERE acl.user_id="+identity+" AND json_type(acl.permissions_json,'$.captures')='integer' AND json_extract(acl.permissions_json,'$.captures') BETWEEN "+minimum+" AND 3)";
 const deviceDto=r=>({id:r.id,label:r.label,status:r.status,activeCaptureId:r.active_capture_id,readyCaptureId:r.ready_capture_id,lastSeenAt:r.last_seen_at_ms==null?null:new Date(r.last_seen_at_ms).toISOString(),expiresAt:new Date(r.expires_at_ms).toISOString(),createdAt:new Date(r.created_at_ms).toISOString()});
-async function deviceBody(request,max=8192){
- if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))deviceFail(415,'content_type','Send JSON data.');
- const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;
- if(reader){try{while(true){const{value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>max){await reader.cancel().catch(()=>{});deviceFail(413,'too_large','The companion request is too large.');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}
- try{const d=JSON.parse(raw);if(!d||typeof d!=='object'||Array.isArray(d))throw Error();return d;}catch{deviceFail(400,'invalid_json','Send valid JSON data.');}
-}
+const deviceBody=(request,max=8192)=>readJson(request,{limit:max,sizeMessage:'The companion request is too large.',jsonMessage:'Send valid JSON data.'});
 function deviceGuardDb(db,device,tokenHash,captureId,clock){
  let denied=false;const raw=Symbol('raw');
  async function execute(statements){const op=crypto.randomUUID();try{const result=await db.batch([deviceSql(db,'INSERT INTO companion_device_guards VALUES(?,?,?,?,?)',op,device.id,tokenHash,captureId,clock()),...statements,deviceSql(db,'DELETE FROM companion_device_guards WHERE operation_id=?',op)]);return result.slice(1,-1);}catch(error){if(/COMPANION_DEVICE_DENIED/.test(String(error)))denied=true;throw error;}}

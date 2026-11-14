@@ -1,10 +1,10 @@
+import {HttpError as LootError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 const LOOT_DAY_MS=86400000;
 const DB_CLOCK="(CAST(strftime('%s','now') AS INTEGER)*1000+CAST(substr(strftime('%f','now'),4,3) AS INTEGER))";
 const SOURCE='https://items.eqresource.com';
 const uuid=()=>crypto.randomUUID();
 const now=()=>new Date().toISOString();
 const normalize=value=>String(value).normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
-class LootError extends Error {constructor(status,code,message){super(message);this.status=status;this.code=code;}}
 const fail=(status,code,message)=>{throw new LootError(status,code,message);};
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const sql=(db,query,...values)=>db.prepare(query).bind(...values);
@@ -12,8 +12,8 @@ const all=async statement=>(await statement.all()).results;
 function text(value,label,max=250){if(typeof value!=='string'||!value.trim()||value.trim().length>max||/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value))fail(400,'validation',`${label} must contain 1-${max} printable characters.`);return value.trim();}
 function integer(value,label,min=1,max=Number.MAX_SAFE_INTEGER){if(!Number.isSafeInteger(value)||value<min||value>max)fail(400,'validation',`${label} must be a whole number from ${min} to ${max}.`);return value;}
 function parseJson(value,fallback){try{return JSON.parse(value);}catch{return fallback;}}
-function safeToken(a,b){if(typeof a!=='string'||typeof b!=='string'||!b||a.length!==b.length)return false;let different=0;for(let n=0;n<a.length;n++)different|=a.charCodeAt(n)^b.charCodeAt(n);return different===0;}
-async function body(request){if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail(415,'content_type','Send JSON data.');const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;if(reader){try{while(true){const{value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>2*1024*1024){await reader.cancel().catch(()=>{});fail(413,'too_large','Loot preparation text exceeds 2 MiB.');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}try{const result=JSON.parse(raw);if(!result||typeof result!=='object'||Array.isArray(result))throw Error();return result;}catch{fail(400,'invalid_json','Send valid JSON data.');}}
+const safeToken=constantTimeEqual;
+const body=request=>readJson(request,{limit:2*1024*1024,sizeMessage:'Loot preparation text exceeds 2 MiB.'});
 function reference(value){
  let input=value.trim(),suppliedName=null;
  const advanced=/^(\d+)\^(\d+)\^([^\r\n]+)$/.exec(input);

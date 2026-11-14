@@ -1,13 +1,13 @@
-# Guild Desk API v0.6
+# Guild Desk API v0.14
 
-Private owner-only test deployment. The first successful registration atomically becomes administrator; this bootstrap is safe only while the Sites access gate is owner-only. Do not widen access before the owner has registered. Subsequent registrations are members. Passwords use PBKDF2 SHA-256 with 100000 iterations and an independent 256-bit salt, compatible with the Workers WebCrypto iteration limit. No password recovery or email delivery in this slice.
+The first registration atomically bootstraps the administrator. Existing accounts remain active after upgrade; later registrations are pending until an account-management writer approves them. Pending accounts receive no session. Passwords use PBKDF2-HMAC-SHA256 with600000 iterations and independent random salt. Each user records its work factor; legacy100000 hashes upgrade after a successful login. The runtime must support the configured WebCrypto work factor. Officer resets are single-use30-minute links with hashed tokens; no email is sent.
 
-All responses are JSON with `Cache-Control: no-store`. Errors: `{error: string, code: string}` with appropriate HTTP status. Mutations require an exact same-origin `Origin` header. Authenticated mutations additionally require `X-CSRF-Token` from `/api/me`. Session cookies are HttpOnly, Secure, SameSite=Strict. Registration/login return a session and fresh CSRF token. All timestamps are UTC ISO except dump `sourceTime`, which is a timezone-unconfirmed local time from its filename.
+All responses are JSON with `Cache-Control: no-store`. Errors: `{error: string, code: string}` with appropriate HTTP status. Mutations require an exact same-origin `Origin` header. Authenticated mutations additionally require `X-CSRF-Token` from `/api/me`. Session cookies are HttpOnly, Secure, SameSite=Strict. Successful login and administrator bootstrap return a session and fresh CSRF token; pending registration returns202 without a cookie. All timestamps are UTC ISO except dump `sourceTime`, which is a timezone-unconfirmed local time from its filename.
 
 | Method and path | Input | Response |
 |---|---|---|
 | GET /api/me | None | `{user: null}` or `{user:{id,email,name,role},csrfToken}` |
-| POST /api/register | `{email,password,name}` | 201 `{user,csrfToken}`. Password 12-128 characters. |
+| POST /api/register | `{email,password,name}` | Administrator bootstrap:201 `{user,csrfToken}`. Later accounts:202 `{pendingApproval:true,message}` with no session. Password12-128 characters. |
 | POST /api/login | `{email,password}` | `{user,csrfToken}` |
 | POST /api/logout | None | `{ok:true}` |
 | GET /api/dashboard | None | `{user,characters:[Character],balance:number,pendingTicks:number,raidCount:number,tickRate:number,auctionStatus:"live"|"not_implemented"}`. Tick rate is the current new-raid default when administration is bundled; auction status is live when the auction module is enabled. |
@@ -21,7 +21,7 @@ All responses are JSON with `Cache-Control: no-store`. Errors: `{error: string, 
 | POST /api/raids/:id/import | Officer: `{files:[{name,text}],commit?:false}` | `{preview:true,files:[ImportPreview],totalRows:number}` |
 | POST /api/raids/:id/import | Officer: same plus `commit:true` | `{preview:false,files:[ImportPreview],importedTicks:number,duplicateTicks:number,creditedDkp:number}` |
 | GET /api/raids/:id | None | `{raid:Raid,ticks:[Tick],attendance:[Attendance]}` |
-| GET /api/ledger | None | `{entries:[LedgerEntry]}` own main characters; officers see all |
+| GET /api/ledger | Ledger read permission | `{entries:[LedgerEntry]}` officer workspace; ordinary members receive403 |
 | GET /api/audit | Officer only | `{entries:[AuditEntry]}` |
 
 `role` retains the legacy bootstrap identity. Production authorization uses the current database access profile and overrides from ACCESS.md; `/api/me`, registration and login return an `access` object with effective permissions. Legacy roles cannot bypass the central route gate.
@@ -79,3 +79,21 @@ GET /api/catalog/spell-names reads spell-cache provenance; POST .../refresh requ
 ## Auction controls (0.8)
 
 POST /api/auctions/:id/cancel, /complete-early and /bids/:characterId/cancel accept {reason,confirm:true,idempotencyKey}, require auctionAdmin.write, same Origin and CSRF, and act only before the current open deadline. Receipts are immutable and exact retries cannot repeat a withdrawal or completion. Cancelled auctions keep other sealed bid events private. GET auction details includes an independent approved-main registry list for authorized management writers. GET /api/auctions accepts slot and cancelled status filters and returns the recorded slot choices. Slots snapshot from saved item data on publication. Early completion changes the effective deadline, retains scheduledClosesAt and still requires normal award confirmation.
+
+## Account safety
+
+| Method and path | Input | Result |
+|---|---|---|
+| POST /api/password/change | `{currentPassword,newPassword}` plus session/Origin/CSRF | Updates the password at600000 iterations, retains current session, revokes other sessions. |
+| GET /api/accounts | Account-management read; optional `q`, `offset` |50-account pages, pending/active/reset-required statuses; no credential hashes or reset tokens. |
+| POST /api/accounts/:id/approve | Account-management write; `{reason}` | Approves a pending account. No automatic sign-in or character claim. |
+| POST /api/accounts/:id/reset | Account-management write; `{reason,currentPassword,confirm:true}` | Immediately revokes target sessions and returns one30-minute resetUrl. Officers cannot reset themselves or privileged accounts; administrators may reset other privileged accounts. |
+| POST /api/password/reset | Same-origin `{token,newPassword}`; no session required | Atomically consumes the unexpired token once, replaces credentials and revokes target sessions. Sign in afterward. |
+
+Mutations revalidate actor session, credential revision and effective rights within their transaction. Concurrent credential/reset changes cannot revive old sessions. Registration is limited by email+trusted IP and by IP alone; login also has a separate IP bucket. Expired auth-limit rows are removed during authentication attempts. Audit records contain reasons and subjects, never passwords or reset secrets.
+
+## Auction list parameters
+
+GET /api/auctions accepts q, class, slot, status=open|closed|cancelled|all, sort=publishedAt|itemId|itemName|quantity|ownBid|closesAt, direction=asc|desc, limit=1..100 (default100), offset=0..1000000. Response includes auctions,total,limit,offset,activeBidSummary. Filtering and sorting occur before paging; ownBid is always the current viewer's bid. The UI uses25-row pages. Set includeSlots=1 when opening filters to include distinct slot options; normal filter/sort/page refreshes omit the extra query. Other sealed bids remain private.
+
+GET /api/ledger requires ledger read access in the officer workspace. Member DKP/attendance information is provided by the owned overview/main report endpoints, not by the ledger endpoint.

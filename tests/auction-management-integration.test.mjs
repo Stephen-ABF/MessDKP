@@ -1,4 +1,6 @@
-import test from 'node:test';import assert from 'node:assert/strict';import worker from '../dist/server/index.js';import {createD1} from './d1-adapter.mjs';import {applicationSchema} from './app-schema.mjs';
+import test from 'node:test';import assert from 'node:assert/strict';import realWorker from '../dist/server/index.js';
+import {activeFixtureWorker} from './account-fixture.mjs';
+const worker=activeFixtureWorker(realWorker);import {createD1} from './d1-adapter.mjs';import {applicationSchema} from './app-schema.mjs';
 test('production boundary enforces management ACL and CSRF while early results use normal officer-confirmed charges',async()=>{
  const DB=createD1(await applicationSchema()),origin='https://auction-management.test';
  const call=async(path,method='GET',body,auth,csrf=true)=>{const r=await worker.fetch(new Request(origin+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(auth?{Cookie:auth.cookie,...(csrf?{'X-CSRF-Token':auth.csrfToken}:{})}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})}),{DB},{});return{status:r.status,body:await r.json(),headers:r.headers};};

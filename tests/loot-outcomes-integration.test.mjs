@@ -1,4 +1,6 @@
-import test from 'node:test';import assert from 'node:assert/strict';import worker from '../dist/server/index.js';import {createD1} from './d1-adapter.mjs';import {applicationSchema} from './app-schema.mjs';
+import test from 'node:test';import assert from 'node:assert/strict';import realWorker from '../dist/server/index.js';
+import {activeFixtureWorker} from './account-fixture.mjs';
+const worker=activeFixtureWorker(realWorker);import {createD1} from './d1-adapter.mjs';import {applicationSchema} from './app-schema.mjs';
 test('production import exclusions, draft removal, custody, won/lost/ties and member privacy work together',async()=>{
  const DB=createD1(await applicationSchema()),origin='https://loot-outcomes.test';
  const call=async(path,method='GET',body,auth)=>{const r=await worker.fetch(new Request(origin+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(auth?{Cookie:auth.cookie,'X-CSRF-Token':auth.csrfToken}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})}),{DB},{});return{status:r.status,data:await r.json(),headers:r.headers};};

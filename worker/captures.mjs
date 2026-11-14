@@ -1,18 +1,12 @@
+import {HttpError as CaptureError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 const CAPTURE_LIFETIME=86400000;
 const captureJson=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
-class CaptureError extends Error {constructor(status,code,message){super(message);this.status=status;this.code=code;}}
 const captureFail=(status,code,message)=>{throw new CaptureError(status,code,message);};
 const captureSql=(db,q,...values)=>db.prepare(q).bind(...values);
 const captureAll=async statement=>(await statement.all()).results;
 const captureHash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),v=>v.toString(16).padStart(2,'0')).join('');
 const captureText=(v,label,max=150)=>{if(typeof v!=='string'||!v.trim()||v.trim().length>max||/[\x00-\x1f\x7f]/.test(v))captureFail(400,'validation',`${label} is required (up to ${max} printable characters).`);return v.trim();};
-async function captureBody(request,empty=false){
- if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')){if(empty&&!request.body)return {};captureFail(415,'content_type','Send JSON data.');}
- const reader=request.body?.getReader(),decoder=new TextDecoder();let text='',size=0;
- if(reader){try{while(true){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>256*1024){await reader.cancel().catch(()=>{});captureFail(413,'too_large','Capture request exceeds 256 KiB.');}text+=decoder.decode(value,{stream:true});}text+=decoder.decode();}finally{reader.releaseLock();}}
- if(empty&&!text.trim())return {};
- try{const value=JSON.parse(text);if(!value||typeof value!=='object'||Array.isArray(value))throw Error();return value;}catch{captureFail(400,'invalid_json','Send valid JSON data.');}
-}
+const captureBody=(request,empty=false)=>readJson(request,{limit:256*1024,empty,sizeMessage:'Capture request exceeds 256 KiB.',jsonMessage:'Send valid JSON data.'});
 const captureEvent=row=>({id:row.event_id,eventId:row.event_id,sender:row.sender,sourceTime:row.source_time,fileName:row.file_name,offset:row.file_offset,line:row.raw_line,ignored:!!row.ignored,items:JSON.parse(row.items_json),warnings:JSON.parse(row.warnings_json)});
 function captureShape(row,events=[]){return {id:row.id,bossName:row.boss_name,raidId:row.raid_id,channelName:row.channel_name,allowedSenders:JSON.parse(row.senders_json),status:row.status,createdAt:row.created_at,expiresAt:new Date(row.expires_at_ms).toISOString(),draftId:row.draft_id,eventCount:events.length,ignoredCount:events.filter(e=>e.ignored).length,itemCount:events.filter(e=>!e.ignored).reduce((n,e)=>n+e.items.length,0),warningCount:events.filter(e=>!e.ignored).reduce((n,e)=>n+e.warnings.length,0)};}
 

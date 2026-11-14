@@ -10,7 +10,7 @@ function fixture(){
  const DB=createD1([read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('auctions.sql'),read('auction-management.sql'),read('admin.sql')].join('\n'));
  let time=Date.parse('2026-11-12T18:00:00Z');const api=createAuctionApi({clock:()=>time});
  const users={officer:{id:'officer',role:'admin'},member:{id:'member',role:'member'},other:{id:'other',role:'member'}};
- for(const u of Object.values(users))DB.raw.prepare('INSERT INTO users VALUES(?,?,?,?,?,?,?)').run(u.id,u.id+'@fixture.test',u.id,'fixture','fixture',u.role,new Date(time).toISOString());
+ for(const u of Object.values(users))DB.raw.prepare('INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES(?,?,?,?,?,?,?)').run(u.id,u.id+'@fixture.test',u.id,'fixture','fixture',u.role,new Date(time).toISOString());
  for(const[who,amount]of[['member',35],['other',80]]){
   DB.raw.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,?,?)').run('char-'+who,who,who,85,'Monk','Raider','main',who,new Date(time).toISOString());
   DB.raw.prepare('INSERT INTO ledger(id,character_id,amount,reason,actor_id,created_at,operation_id) VALUES(?,?,?,?,?,?,?)').run('opening-'+who,'char-'+who,amount,'Fixture opening balance','officer',new Date(time).toISOString(),'opening-'+who);

@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {handleApi} from '../worker/api.mjs';
+import {handleApi as realHandleApi} from '../worker/api.mjs';
+import {activeFixtureWorker,legacyAccountColumns} from './account-fixture.mjs';
+const fixtureApi=activeFixtureWorker({fetch:realHandleApi});const handleApi=(...args)=>{legacyAccountColumns(args[1].DB);return fixtureApi.fetch(...args);};
 import {ITEM_REFERENCE_SCHEMA_SQL} from '../worker/items.mjs';
 import {createD1} from './d1-adapter.mjs';
 const read=name=>readFileSync(new URL('../worker/'+name,import.meta.url),'utf8');

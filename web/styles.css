@@ -565,3 +565,32 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
  .auction-table .auction-copy-count{grid-column:1}.auction-table .auction-your-bid{grid-column:2}.auction-table .auction-time{grid-column:3}
 }
 @container auction-list (max-width:499px){.auction-row-meta{margin-left:0;max-width:100%}}
+
+/* Compact EQ item windows: three aligned stat columns instead of long sections. */
+.eq-pane{background:#050607;color:#f0f0f0;border:2px solid #aaa4c5;box-shadow:inset 0 0 0 1px #343347;padding:11px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.25}
+.eq-item-heading{gap:9px;margin-bottom:5px}.eq-item-heading h2,.eq-item-heading h3{color:#43ff36;font-size:14px;line-height:1.2;font-weight:700}
+.eq-pane .eq-item-icon{width:40px;height:40px;flex-basis:40px}.eq-item-id{font-size:10px;margin-top:3px;color:#b8b8bd}
+.eq-flags{margin:0 0 4px;font-size:11px;text-transform:none;color:#eee}
+.eq-eligibility>div{margin-top:2px}.eq-pane dt{color:#e3e3e6}.eq-pane dd{color:#51f635}
+.eq-stat-section{margin:0!important;padding:0!important;border:0!important}
+.eq-stat-section h4{font-size:10px;color:#bcb8d0;margin:0 0 4px;line-height:1.2}
+.eq-stats{display:grid;grid-template-columns:minmax(0,1fr);gap:3px;padding:0;margin:0;border:0;font-size:11px;line-height:1.25}
+.eq-pane .eq-stat-section .eq-stats{display:grid;grid-template-columns:minmax(0,1fr);gap:3px;padding:0;margin:0;border:0;font-size:11px}
+.eq-stats>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;align-items:baseline}
+.eq-stats dt{min-width:0;white-space:normal}.eq-stats dd{white-space:nowrap;overflow-wrap:normal}
+.eq-item-top-stats{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr);gap:5px 12px;margin:12px 0 14px;align-items:start}
+.eq-item-top-stats .eq-level-stats{grid-column:1;grid-row:1/3}.eq-item-top-stats .eq-primary-stats{grid-column:2;grid-row:1/3}
+.eq-item-top-stats .eq-weapon-stats{grid-column:3;grid-row:1}.eq-item-top-stats .eq-elemental-stats{grid-column:3;grid-row:2}
+.eq-three-stat-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 10px;align-items:start}
+.eq-heroic{color:#fff050;font-weight:700}.eq-effects,.eq-augments{margin-top:9px}.eq-effects h4,.eq-augments h4{margin-bottom:4px;font-size:10px;letter-spacing:0}
+.eq-effects p,.eq-augments p{margin-top:3px;font-size:11px;line-height:1.25;color:#f0f0f0}.eq-effects p{color:#ec92ff}.eq-lore{margin-top:8px;font-size:11px}
+.eq-extra-stats{margin-top:8px;font-size:11px}.eq-item-footer{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:6px;font-size:11px}
+.eq-item-footer button{min-height:28px;padding:3px 8px;font-size:11px}.eq-reference-details{font-size:11px;margin-top:6px}.eq-reference-details>p{margin-top:6px}
+.eq-source-fields{margin-top:8px;font-size:11px}.eq-missing{margin-top:6px;font-size:11px}.item-preview{padding:9px;border-radius:6px;max-height:calc(100dvh - 24px)}
+.item-comparison-grid{gap:12px}.comparison-item{padding:10px}.comparison-label{margin-bottom:7px;font-size:12px}.comparison-controls{margin-bottom:12px}
+.item-dialog-bar{padding:10px 14px}.item-dialog-bar h2{font-size:15px}.item-dialog-bar button{min-height:32px;padding:5px 10px;font-size:12px}
+#item-dialog-content{padding:12px}.comparison-controls{gap:10px;margin-bottom:8px}.comparison-controls label{font-size:12px;gap:4px}.comparison-controls select{min-height:34px;padding:6px 9px}
+.comparison-differences{margin-top:12px}.comparison-differences>summary{font-weight:600;padding:8px 0}
+.account-security{max-width:620px}.account-security form,.account-card form{display:grid;gap:12px}.account-cards{display:grid;gap:14px;margin-top:18px}
+.account-card{border:1px solid var(--line);border-radius:10px;padding:16px}.account-card header{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:12px}.account-card p{font-size:12px;color:var(--muted)}.account-card details>form{margin-top:12px}
+@media(max-width:650px){.eq-pane{padding:9px}.eq-item-top-stats,.eq-three-stat-columns{gap:8px}.eq-stats{font-size:11px}.eq-item-heading h2,.eq-item-heading h3{font-size:13px}.account-card header{flex-wrap:wrap}}

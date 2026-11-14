@@ -1,6 +1,6 @@
+import {HttpError as ReportError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 // Guild-wide approved-main DKP and dump-tick attendance. Read-only.
 const json = (value, status = 200, headers = {}) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...headers } });
-class ReportError extends Error { constructor(status, code, message) { super(message); this.status = status; this.code = code; } }
 const fail = (status, code, message) => { throw new ReportError(status, code, message); };
 const sql = (db, query, ...params) => db.prepare(query).bind(...params);
 const compare = (a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b, 'en');

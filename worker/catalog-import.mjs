@@ -1,3 +1,4 @@
+import {HttpError,requireCsrf} from './http.mjs';
 // Uploaded EQItems/SODEQ data only. No remote request or image URL is generated.
 export const CATALOG_LIMITS=Object.freeze({uploadBytes:32*1024*1024,decodedBytes:256*1024*1024,maxRows:500000,recordBytes:65536,chunkBytes:256*1024});
 export const CATALOG_CLASS_BITS=Object.freeze(Object.fromEntries(['WAR','CLR','PAL','RNG','SHD','DRU','MNK','BRD','ROG','SHM','NEC','WIZ','MAG','ENC','BST','BER'].map((name,i)=>[name,2**i])));
@@ -6,7 +7,7 @@ export const CATALOG_CLASS_BITS=Object.freeze(Object.fromEntries(['WAR','CLR','P
 export const CATALOG_SLOT_BITS=Object.freeze({CHARM:1,HEAD:4,FACE:8,EAR:18,NECK:32,SHOULDERS:64,ARMS:128,BACK:256,WRIST:1536,RANGE:2048,HANDS:4096,PRIMARY:8192,SECONDARY:16384,FINGER:98304,CHEST:131072,LEGS:262144,FEET:524288,WAIST:1048576,'POWER SOURCE':2097152,AMMO:4194304});
 const raceNames=['Human','Barbarian','Erudite','Wood Elf','High Elf','Dark Elf','Half Elf','Dwarf','Troll','Ogre','Halfling','Gnome','Iksar','Vah Shir','Froglok','Drakkin','Shroud'];
 const encoder=new TextEncoder(),catalogJson=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
-class CatalogError extends Error{constructor(status,code,message,lineNumber){super(message);this.status=status;this.code=code;this.lineNumber=lineNumber;}}
+class CatalogError extends HttpError{constructor(status,code,message,lineNumber){super(status,code,message);this.lineNumber=lineNumber;}}
 const fail=(status,code,message,line)=>{throw new CatalogError(status,code,message,line);};
 const sql=(db,text,...params)=>db.prepare(text).bind(...params);
 const normalize=value=>String(value).normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
@@ -15,7 +16,7 @@ function whole(value,label,min=0,max=Number.MAX_SAFE_INTEGER,line){if(!/^-?\d+$/
 function date(value){if(value===null||value===undefined||value==='')return null;const d=new Date(value+'T00:00:00.000Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==value)fail(400,'invalid_source_date','Use YYYY-MM-DD for the source dump date.');return value;}
 function filename(value){if(typeof value!=='string'||!value.trim()||value.length>200||/[\x00-\x1f\x7f\\/]/.test(value))fail(400,'invalid_file','Choose a named item dump file.');return value.trim();}
 function permitted(context,minimum){return context.access?Number.isInteger(context.access.permissions?.items)&&context.access.permissions.items>=minimum:context.user?.role==='admin';}
-function mutation(request,context){if(request.headers.get('origin')!==new URL(request.url).origin)fail(403,'origin','A same-origin request is required.');if(!context.csrfToken||request.headers.get('x-csrf-token')!==context.csrfToken)fail(403,'csrf','Refresh your session before importing item data.');}
+function mutation(request,context){requireCsrf(request,context.csrfToken);}
 export function splitCatalogRecord(line){
  const fields=[];let value='';for(let i=0;i<line.length;i++){const c=line[i];if(c==='\\'&&line[i+1]==='|'){value+='|';i++;}else if(c==='|'){fields.push(value);value='';}else value+=c;}fields.push(value);return fields;
 }

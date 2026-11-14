@@ -9,7 +9,9 @@ import { Readable } from 'node:stream';
 import { openPersistentD1 } from '../local/d1.mjs';
 import { LOCAL_MIGRATIONS_TABLE } from '../local/migrations.mjs';
 import { configuredPort, requestOrigin, createLocalServer, MAX_REQUEST_BYTES } from '../server.mjs';
-import { handleApi } from '../worker/api.mjs';
+import {handleApi as realHandleApi} from '../worker/api.mjs';
+import {activeFixtureWorker,legacyAccountColumns} from './account-fixture.mjs';
+const fixtureApi=activeFixtureWorker({fetch:realHandleApi});const handleApi=(...args)=>{legacyAccountColumns(args[1].DB);return fixtureApi.fetch(...args);};
 import { handleAuctionApi } from '../worker/auctions.mjs';
 
 const projectMigrations=fileURLToPath(new URL('../drizzle',import.meta.url));

@@ -1,7 +1,7 @@
+import {HttpError as InventoryError,readJson,readText,requireCsrf,constantTimeEqual} from './http.mjs';
 // Parses the verified EQ /outputfile inventory TSV. Bags and key rings are not equipment.
 export const INVENTORY_MAX_BYTES=2*1024*1024;
 const definitions=[['Charm','charm','Charm'],['Ear','ear1','Left ear'],['Head','head','Head'],['Face','face','Face'],['Ear','ear2','Right ear'],['Neck','neck','Neck'],['Shoulders','shoulders','Shoulders'],['Arms','arms','Arms'],['Back','back','Back'],['Wrist','wrist1','Left wrist'],['Wrist','wrist2','Right wrist'],['Range','ranged','Ranged'],['Hands','hands','Hands'],['Primary','primary','Primary'],['Secondary','secondary','Secondary'],['Fingers','finger1','Left finger'],['Fingers','finger2','Right finger'],['Chest','chest','Chest'],['Legs','legs','Legs'],['Feet','feet','Feet'],['Waist','waist','Waist'],['Power Source','powerSource','Power source'],['Ammo','ammo','Ammo']];
-class InventoryError extends Error{constructor(status,code,message){super(message);this.status=status;this.code=code;}}
 const fail=(status,code,message)=>{throw new InventoryError(status,code,message);};
 const statement=(db,q,...values)=>db.prepare(q).bind(...values);
 const response=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -44,8 +44,7 @@ const ownerSql="SELECT id,name,class_name AS className,owner_id AS ownerId,kind 
 const currentSql='SELECT e.slot_key AS slotKey,e.item_id AS itemId,r.name AS itemName FROM character_equipment e LEFT JOIN item_references r ON r.item_id=e.item_id WHERE e.character_id=?';
 async function readInput(request){
  if(!request.headers.get('content-type')?.startsWith('application/json'))fail(415,'content_type','Send JSON inventory data.');
- let bytes=0,raw='';const reader=request.body?.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});
- if(reader){try{while(true){const{value,done}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>INVENTORY_MAX_BYTES+256*1024){await reader.cancel().catch(()=>{});fail(413,'inventory_too_large','Choose an inventory text file under 2 MiB.');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}
+ const raw=await readText(request,{limit:INVENTORY_MAX_BYTES+256*1024,sizeCode:'inventory_too_large',sizeMessage:'Choose an inventory text file under 2 MiB.',fatalUtf8:true});
  let input;try{input=JSON.parse(raw);}catch{fail(400,'invalid_json','Send valid inventory upload data.');}
  if(!input||Array.isArray(input)||typeof input.text!=='string'||typeof input.fileName!=='string'||!/\.txt$/i.test(input.fileName)||input.fileName.length>180||/[\\/\x00-\x1f]/.test(input.fileName))fail(400,'invalid_inventory','Choose a .txt inventory export.');return input;
 }

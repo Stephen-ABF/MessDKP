@@ -1,7 +1,9 @@
+import {activeFixtureWorker,legacyAccountColumns} from './account-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {handleApi} from '../worker/api.mjs';
+import {handleApi as realHandleApi} from '../worker/api.mjs';
+const fixtureApi=activeFixtureWorker({fetch:realHandleApi});const handleApi=(...args)=>{legacyAccountColumns(args[1].DB);return fixtureApi.fetch(...args);};
 import {createAuctionApi} from '../worker/auctions.mjs';
 import {ITEM_REFERENCE_SCHEMA_SQL} from '../worker/items.mjs';
 import {createD1} from './d1-adapter.mjs';
@@ -83,16 +85,16 @@ test('active bids and pending item awards block detach without changing ownershi
 }finally{h.close();}});
 
 test('migration backfills only evidenced assigners and never fabricates unknown approval actors',()=>{
- const schema=[read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('auctions.sql')].join('\n'),DB=createD1(schema);
+ const schema=[read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('auctions.sql')].join('\n'),DB=createD1(schema);legacyAccountColumns(DB);
  try{
-  DB.raw.exec("INSERT INTO users VALUES('owner','owner@fixture.test','Owner','x','x','admin','now'); INSERT INTO characters VALUES('c','mainhero','Mainhero',85,'Cleric','Raider','main','owner','then'); INSERT INTO claims(id,character_id,user_id,status,kind,created_at,approved_at) VALUES('q','c','owner','approved','main','before','then');");
+  DB.raw.exec("INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES('owner','owner@fixture.test','Owner','x','x','admin','now'); INSERT INTO characters VALUES('c','mainhero','Mainhero',85,'Cleric','Raider','main','owner','then'); INSERT INTO claims(id,character_id,user_id,status,kind,created_at,approved_at) VALUES('q','c','owner','approved','main','before','then');");
   DB.raw.exec(read('ownership.sql'));const e=DB.raw.prepare('SELECT * FROM assignment_events').get();assert.equal(e.actor_id,null);assert.equal(e.assigned_by,null);assert.equal(e.action,'approved');assert.equal(DB.raw.prepare('SELECT owner_id FROM characters').get().owner_id,'owner');
  }finally{DB.close();}
 });
 
 test('legacy approver backfill uses matching audit timestamp rather than character owner or unrelated approval',()=>{
  const DB=createD1([read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('auctions.sql')].join('\n'));try{
-  DB.raw.exec("INSERT INTO users VALUES('member','member@fixture.test','Member','x','x','member','now'); INSERT INTO users VALUES('officer','officer@fixture.test','Officer','x','x','admin','now'); INSERT INTO characters VALUES('c','mainhero','Mainhero',85,'Cleric','Raider','main','member','then'); INSERT INTO claims(id,character_id,user_id,status,kind,created_at,approved_at) VALUES('q','c','member','approved','main','before','then');");
+  DB.raw.exec("INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES('member','member@fixture.test','Member','x','x','member','now'); INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES('officer','officer@fixture.test','Officer','x','x','admin','now'); INSERT INTO characters VALUES('c','mainhero','Mainhero',85,'Cleric','Raider','main','member','then'); INSERT INTO claims(id,character_id,user_id,status,kind,created_at,approved_at) VALUES('q','c','member','approved','main','before','then');");
   DB.raw.prepare('INSERT INTO audit VALUES(?,?,?,?,?)').run('earlier','member','claim_approved',JSON.stringify({claimId:'q'}),'before');
   DB.raw.prepare('INSERT INTO audit VALUES(?,?,?,?,?)').run('actual','officer','claim_approved',JSON.stringify({claimId:'q'}),'then');
   DB.raw.exec(read('ownership.sql'));assert.equal(DB.raw.prepare('SELECT approved_by FROM claims').get().approved_by,'officer');assert.equal(DB.raw.prepare('SELECT assigned_by FROM assignment_events').get().assigned_by,'officer');

@@ -100,3 +100,6 @@ test('readable audit descriptions resolve known names and reasons without raw JS
  assert.equal(auditDescription({action:'legacy_import',details:'malformed{ evidence'}),'Legacy import.');
  const unknown=auditDescription({action:'unknown_event',details:{secret:'sensitive',reason:'Officer explanation'}});assert.equal(unknown,'Unknown event. Reason: Officer explanation');
 }finally{h.close();}});
+
+
+test('auction publication grammar distinguishes one copy from multiple copies',()=>{assert.equal(auditDescription({action:'auction_published',itemName:'Synthetic ring',details:{quantity:1}}),'Published 1 copy of Synthetic ring.');assert.equal(auditDescription({action:'auction_published',itemName:'Synthetic ring',details:{quantity:4}}),'Published 4 copies of Synthetic ring.');});

@@ -1,24 +1,18 @@
+import {HttpError as AdminError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 const encoder = new TextEncoder();
 const MAX_BODY = 128 * 1024;
 const MAX_SAFE = Number.MAX_SAFE_INTEGER;
 const now = () => new Date().toISOString();
 const id = () => crypto.randomUUID();
-class AdminError extends Error { constructor(status,code,message) { super(message); this.status=status; this.code=code; } }
 const fail = (status,code,message) => { throw new AdminError(status,code,message); };
 const sql = (db,query,...params) => db.prepare(query).bind(...params);
 const all = async statement => (await statement.all()).results;
 const json = (value,status=200) => Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 function text(value,field,min=1,max=1000) { if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)fail(400,'validation',`${field} must contain ${min}-${max} characters.`);return value.trim(); }
 function positive(value,field) {if(!Number.isSafeInteger(value)||value<1||value>1000000)fail(400,'validation',`${field} must be a whole number from 1 to 1000000.`);return value;}
-function sameText(a,b) {if(typeof a!=='string'||typeof b!=='string'||a.length!==b.length)return false;let mismatch=0;for(let i=0;i<a.length;i++)mismatch|=a.charCodeAt(i)^b.charCodeAt(i);return mismatch===0;}
+const sameText=constantTimeEqual;
 function officer(user) {if(user.role!=='admin')fail(403,'forbidden','Officer access is required.');}
-async function body(request) {
- if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail(415,'content_type','Send JSON data.');
- if(Number(request.headers.get('content-length')||0)>MAX_BODY)fail(413,'too_large','Request is too large.');
- const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;
- if(reader){try{while(true){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>MAX_BODY){await reader.cancel().catch(()=>{});fail(413,'too_large','Request is too large.');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}
- try{const result=JSON.parse(raw);if(!result||typeof result!=='object'||Array.isArray(result))throw new Error();return result;}catch{fail(400,'invalid_json','Invalid JSON request.');}
-}
+const body=request=>readJson(request,{limit:MAX_BODY,sizeMessage:'Upload is too large.'});
 const requestSelect=`SELECT q.id,q.tick_id AS tickId,q.character_id AS characterId,c.name AS characterName,q.requester_id AS requesterId,u.name AS requesterName,t.raid_id AS raidId,r.name AS raidName,t.source_time AS sourceTime,q.reason,q.status,q.tick_rate AS tickRate,q.created_at AS createdAt,q.decision_reason AS decisionReason,q.decided_by AS decidedBy,d.name AS decidedByName,q.decided_at AS decidedAt FROM correction_requests q JOIN characters c ON c.id=q.character_id JOIN users u ON u.id=q.requester_id JOIN ticks t ON t.id=q.tick_id JOIN raids r ON r.id=t.raid_id LEFT JOIN users d ON d.id=q.decided_by`;
 const adjustmentSelect=`SELECT a.id,a.character_id AS characterId,c.name AS characterName,a.amount,a.reason,a.actor_id AS actorId,u.name AS actorName,a.idempotency_key AS idempotencyKey,a.created_at AS createdAt FROM dkp_adjustments a JOIN characters c ON c.id=a.character_id JOIN users u ON u.id=a.actor_id`;
 const defaultSettings=()=>({defaultTickRate:5,minimumBid:1,presets:[],updatedAt:null,updatedBy:null});
@@ -126,8 +120,7 @@ export async function handleAdminApi(request,env,context={}) {
   if(!user?.id)fail(401,'authentication_required','Please sign in.');
   if(!['GET','POST','PUT'].includes(request.method))fail(405,'method_not_allowed','Method not allowed.');
   if(request.method!=='GET'){
-   if(request.headers.get('origin')!==url.origin)fail(403,'origin','A same-origin request is required.');
-   if(!context.csrfToken||!sameText(request.headers.get('x-csrf-token'),context.csrfToken))fail(403,'csrf','Refresh your session and try again.');
+   requireCsrf(request,context.csrfToken);
   }
   if(path==='/api/settings'&&request.method==='GET')return json({settings:await readSettings(db),appliesTo:'new_raids_and_auctions_only'});
   if(path==='/api/settings'&&request.method==='PUT')return await saveSettings(request,db,user);

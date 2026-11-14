@@ -1,11 +1,13 @@
+import {activeFixtureWorker,legacyAccountColumns} from './account-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {handleApi} from '../worker/api.mjs';
+import {handleApi as realHandleApi} from '../worker/api.mjs';
+const fixtureApi=activeFixtureWorker({fetch:realHandleApi});const handleApi=(...args)=>{legacyAccountColumns(args[1].DB);return fixtureApi.fetch(...args);};
 import {handleAdminApi} from '../worker/admin.mjs';
 import {createD1} from './d1-adapter.mjs';
 const schema=readFileSync(new URL('../worker/schema.sql',import.meta.url),'utf8')+'\n'+readFileSync(new URL('../worker/admin.sql',import.meta.url),'utf8');
-function harness(){const DB=createD1(schema);return {DB,async call(path,method='GET',input,auth,extra={}){const headers={...extra};if(method!=='GET'){headers.origin??='https://guild.test';headers['content-type']='application/json';}if(auth){headers.cookie=auth.cookie;headers['x-csrf-token']??=auth.csrfToken;}const request=new Request('https://guild.test'+path,{method,headers,...(input!==undefined?{body:JSON.stringify(input)}:{})});const adminRoute=/^\/api\/(attendance-requests|settings|adjustments)(\/|$)/.test(path);const response=adminRoute?await handleAdminApi(request,{DB},auth?{user:auth.user,csrfToken:auth.csrfToken}:{}):await handleApi(request,{DB});return {status:response.status,body:await response.json(),headers:response.headers};},close(){DB.close();}};}
+function harness(){const DB=createD1(schema);legacyAccountColumns(DB);return {DB,async call(path,method='GET',input,auth,extra={}){const headers={...extra};if(method!=='GET'){headers.origin??='https://guild.test';headers['content-type']='application/json';}if(auth){headers.cookie=auth.cookie;headers['x-csrf-token']??=auth.csrfToken;}const request=new Request('https://guild.test'+path,{method,headers,...(input!==undefined?{body:JSON.stringify(input)}:{})});const adminRoute=/^\/api\/(attendance-requests|settings|adjustments)(\/|$)/.test(path);const response=adminRoute?await handleAdminApi(request,{DB},auth?{user:auth.user,csrfToken:auth.csrfToken}:{}):await handleApi(request,{DB});return {status:response.status,body:await response.json(),headers:response.headers};},close(){DB.close();}};}
 async function register(h,email,name){const r=await h.call('/api/register','POST',{email,name,password:'correct horse battery staple'});assert.equal(r.status,201,JSON.stringify(r.body));return {...r.body,cookie:r.headers.get('set-cookie').split(';')[0]};}
 const line=name=>[name,'85','Cleric','Raider','','11/11/26','Guild Hall','Main','','on','off','999,999','','Main',''].join('\t');
 const file=(time,names)=>({name:`DemoGuild_test-20261111-${time}.txt`,text:names.map(line).join('\n')+'\n'});

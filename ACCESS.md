@@ -50,3 +50,9 @@ Access edits use their own guarded transactions rather than the central business
 ## Persistent companions
 
 Web /api/companion-devices routes use captures read/write and current ownership. Native /api/companion-device routes use their own scoped device credential, never a browser session. Device/capture binding and both creator permissions are guarded in the ingestion transaction. Readiness is distinct from pairing: the local watcher acknowledges the active capture before the website shows Watching.
+
+## Account management and current credentials (0.14)
+
+The accounts permission is separate from access-profile administration. Built-in administrators/officers receive write, members none. New registrations are pending until approved. Existing users remain active after0016. All users can change their own password under My account without an officer permission. Other sessions are revoked after change; the current session remains. Officer resets require current officer password, reason and confirmation, immediately revoke target sessions, and return one30-minute link to pass directly to the member. The member sets a new password and signs in again. Officers cannot reset themselves or delegated privileged accounts; administrators can reset other privileged users.
+
+Read-only scoped requests validate current permissions/session by SELECT queries. Mutating batches retain atomic guard rows and check current session token plus credential revision. Access edits use their own atomic write checks and session fence, retaining a readable response for intentional self-demotion. Session deletion/reset cannot revive a paused write, even after reset completion.

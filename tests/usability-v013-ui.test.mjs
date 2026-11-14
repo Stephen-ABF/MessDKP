@@ -52,3 +52,8 @@ test('a last-page refresh retains keyboard focus on the page count when Next bec
  await h.run('refreshAuctionFilters($(\'[data-form="filter-auctions"]\'),auctionFilterVersion,{element:oldButton,selector:\'[data-page-direction="next"]\'})');
  assert.equal(h.context.document.activeElement,h.get('[data-page-position]'));
 });
+
+
+test('a reset link in an already-open signed-in tab clears stale account state and consumes the fragment into memory',async()=>{
+ const h=harness(),token='a'.repeat(64);h.window.location.hash='#reset-password?token='+token;h.run('clearCapturePairing=()=>{};stopCompanionPolling=()=>{};closeItemSurfaces=()=>{};');await h.events.hashchange();assert.equal(h.run('state.user'),null);assert.equal(h.run('state.resetToken'),token);assert.equal(h.run('state.authMode'),'reset');assert.equal(h.window.location.hash,'#reset-password');assert.match(h.get('#auth').innerHTML,/Set a new password/);assert.equal(h.get('#auth').innerHTML.includes(token),false);assert.equal(h.calls.length,0);
+});

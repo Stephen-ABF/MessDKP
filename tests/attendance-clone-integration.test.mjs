@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../dist/server/index.js';
+import realWorker from '../dist/server/index.js';
+import {activeFixtureWorker} from './account-fixture.mjs';
+const worker=activeFixtureWorker(realWorker);
 import {createD1} from './d1-adapter.mjs';
 import {applicationSchema} from './app-schema.mjs';
 const origin='https://attendance-clone.test';

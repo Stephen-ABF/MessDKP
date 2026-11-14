@@ -1,4 +1,4 @@
-# Guild Desk 0.13.0
+# Guild Desk 0.14.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -20,7 +20,15 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.13.0
+## New in 0.14.0
+
+Compact EQ-style item windows use three stat columns, heroic values beside base stats, visible effects/augment slots and collapsed reference/difference details. Hover and comparison layouts have less vertical padding.
+
+New registrations wait for officer approval; existing accounts stay active. My account changes a password with current-password verification and signs out other sessions. Officers approve accounts and issue30-minute single-use reset links; reset secrets are hashed at rest, never audited, and administrators alone can reset other privileged accounts. Target sessions are revoked immediately. Passwords record per-user PBKDF2 work factors, with600000 iterations for new credentials and automatic legacy upgrades at login. Registration/login have separate trusted-IP rate-limit buckets. Expired limit rows are cleaned.
+
+Shared request/error/CSRF helpers, read-only authorization checks without guard-row writes, credential/session fencing on writes including access-management self-demotion, opt-in slot-filter options, loopback Host checks in both servers, corrected API documentation, singular copy grammar and a package-derived build version. A formatting-only web/app.js commit precedes these changes. Additive migration0016 preserves existing users and data. No changes to DKP or sealed-bid rules.
+
+## Previous usability (0.13.0)
 
 Auction names and class/slot metadata remain readable beside the sidebar at tablet widths. Responsive rows replace compressed columns, while desktop keeps the larger sortable headings. Lists have 25-item pages and filtered totals, with global own-bid spending summaries across all pages.
 
@@ -78,6 +86,6 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.13.0 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.14.0 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.

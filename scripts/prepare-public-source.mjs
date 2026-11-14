@@ -45,10 +45,10 @@ function publicText(text,file){
 const files=new Map();
 for(const file of records)files.set(file,publicText(await readFile(path.join(root,file),'utf8'),file));
 const packageInfo=JSON.parse(files.get('package.json'));
-if(packageInfo.version!=='0.13.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
+if(packageInfo.version!=='0.14.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
 packageInfo.scripts={...packageInfo.scripts,build:'node build.mjs --local',test:'node --test'};
 files.set('package.json',JSON.stringify(packageInfo,null,2)+'\n');
-files.set('README.md',`# Guild Desk 0.13.0
+files.set('README.md',`# Guild Desk 0.14.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -70,7 +70,15 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.13.0
+## New in 0.14.0
+
+Compact EQ-style item windows use three stat columns, heroic values beside base stats, visible effects/augment slots and collapsed reference/difference details. Hover and comparison layouts have less vertical padding.
+
+New registrations wait for officer approval; existing accounts stay active. My account changes a password with current-password verification and signs out other sessions. Officers approve accounts and issue30-minute single-use reset links; reset secrets are hashed at rest, never audited, and administrators alone can reset other privileged accounts. Target sessions are revoked immediately. Passwords record per-user PBKDF2 work factors, with600000 iterations for new credentials and automatic legacy upgrades at login. Registration/login have separate trusted-IP rate-limit buckets. Expired limit rows are cleaned.
+
+Shared request/error/CSRF helpers, read-only authorization checks without guard-row writes, credential/session fencing on writes including access-management self-demotion, opt-in slot-filter options, loopback Host checks in both servers, corrected API documentation, singular copy grammar and a package-derived build version. A formatting-only web/app.js commit precedes these changes. Additive migration0016 preserves existing users and data. No changes to DKP or sealed-bid rules.
+
+## Previous usability (0.13.0)
 
 Auction names and class/slot metadata remain readable beside the sidebar at tablet widths. Responsive rows replace compressed columns, while desktop keeps the larger sortable headings. Lists have 25-item pages and filtered totals, with global own-bid spending summaries across all pages.
 
@@ -128,7 +136,7 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.13.0 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.14.0 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.
 `);
@@ -138,7 +146,7 @@ const extras=Array.from({length:27},(_,index)=>'Demochar'+letters(index));
 function artificialRoster(names){return names.map(name=>{const index=name==='Mainhero'?0:name==='Secondhero'?1:extras.indexOf(name)+2;return[name,'80',classes[index%classes.length],'Demo Member','','01/01/26','Demo Zone','Artificial example; not an ownership claim','','on','off',String(1000+index),'01/01/26','Artificial example; not an ownership claim',''].join('\t');}).join('\n')+'\n';}
 files.set('tests/fixtures/DemoGuild_test-20261111-180515(1).txt',artificialRoster(['Mainhero',...extras.slice(0,25)]));
 files.set('tests/fixtures/DemoGuild_test-20261111-182058(1).txt',artificialRoster(['Mainhero','Secondhero',...extras]));
-files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.13.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
+files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.14.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
 
 let inputIsPublic=false;try{inputIsPublic=JSON.parse(await readFile(path.join(root,'PUBLIC_SOURCE.json'),'utf8')).syntheticSamples===true;}catch{}
 for(const [file,text]of files){

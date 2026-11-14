@@ -17,7 +17,7 @@ test('zero stats and levels are hidden independently while negatives, nonzero he
  const view=presentation();
  const html=view.itemStatSections({ac:0,hp:'0',mana:'15',endurance:'0.00',requiredLevel:0,recommendedLevel:' 0 ',strength:0,heroicStrength:7,stamina:8,heroicStamina:'0',magicResist:-15,fireResist:'-4',healAmount:'0',spellDamage:13,clairvoyance:0,haste:'-0',zeroExtra:'0e0',positiveExtra:9});
  for(const label of ['AC','HP','END','Required level','Recommended level','STR','Heroic STA','Heal amount','Clairvoyance','haste','zero Extra'])assert.doesNotMatch(html,new RegExp(`<dt>${label}:<\\/dt>`));
- assert.match(html,/<dt>Heroic STR:<\/dt><dd>7<\/dd>/);assert.match(html,/<dt>STA:<\/dt><dd>8<\/dd>/);
+ assert.match(html,/<dt>Heroic STR:<\/dt><dd> <span class="eq-heroic"[^>]*>\+7<\/span>/);assert.match(html,/<dt>STA:<\/dt><dd>8<\/dd>/);
  assert.match(html,/<dt>MAGIC:<\/dt><dd>-15<\/dd>/);assert.match(html,/<dt>FIRE:<\/dt><dd>-4<\/dd>/);
  assert.match(html,/<dt>Spell damage:<\/dt><dd>13<\/dd>/);assert.match(html,/<dd>9<\/dd>/);assert.doesNotMatch(html,/<dd>0(?:\.0+)?<\/dd>/);
  });

@@ -16,7 +16,7 @@ function exportText({empty=[],augments=true,extras=true}={}){
 }
 function fixture({catalog}={}){
  const DB=createD1([read('schema.sql'),ITEM_REFERENCE_SCHEMA_SQL,read('item-details.sql'),read('auctions.sql'),read('equipment.sql'),read('inventory.sql')].join('\n'));
- for(const id of ['owner','other','officer'])DB.raw.prepare('INSERT INTO users VALUES(?,?,?,?,?,?,?)').run(id,id+'@fixture.invalid',id,'fixture','fixture',id==='officer'?'admin':'member','2026-11-12');
+ for(const id of ['owner','other','officer'])DB.raw.prepare('INSERT INTO users(id,email,name,password_hash,salt,role,created_at) VALUES(?,?,?,?,?,?,?)').run(id,id+'@fixture.invalid',id,'fixture','fixture',id==='officer'?'admin':'member','2026-11-12');
  DB.raw.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,?,?)').run('hero','hero','Hero',100,'Bard','Raider','main','owner','2026-11-12');
  DB.raw.prepare('INSERT INTO ledger VALUES(?,?,?,?,?,?,?,?)').run('credit','hero',null,42,'Preserve balance','officer','2026-11-12','credit-key');
  const handler=createInventoryApi({catalog});

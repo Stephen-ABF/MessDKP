@@ -1,3 +1,4 @@
+import {HttpError,readJson,requireCsrf} from './http.mjs';
 // EQResource reference records. No live scraper or complete game catalog is implied.
 export const ITEM_REFERENCE_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS item_references (
   item_id INTEGER PRIMARY KEY CHECK (item_id > 0),
@@ -49,7 +50,7 @@ export const VERIFIED_ITEM_REFERENCES = Object.freeze([
 ]);
 
 function fail(message, code, status = 400) {
-  const error = new Error(message); error.code = code; error.status = status; throw error;
+  throw new HttpError(status,code,message);
 }
 
 export function parseEqItemReference(input) {
@@ -141,11 +142,7 @@ function normalizeClass(value) {
 
 function requireMutationAccess(request, context) {
   if (!['admin', 'officer'].includes(context.user?.role)) fail('Only an officer can add item references.', 'forbidden', 403);
-  const url = new URL(request.url);
-  if (request.headers.get('Origin') !== url.origin) fail('A same-origin request is required.', 'invalid_origin', 403);
-  if (typeof context.csrfToken !== 'string' || !context.csrfToken || request.headers.get('X-CSRF-Token') !== context.csrfToken) {
-    fail('Refresh the page and retry.', 'invalid_csrf', 403);
-  }
+  requireCsrf(request,context.csrfToken,{originCode:'invalid_origin',csrfCode:'invalid_csrf'});
 }
 
 async function legacyItemApi(request, env, context = {}) {
@@ -257,11 +254,7 @@ function sourceCandidate(value,query){
  if(!value||!Number.isSafeInteger(value.itemId)||value.itemId<1||typeof value.name!=='string'||!value.name.trim()||value.name.trim().length>250||value.nameConflict)return null;
  return{itemId:value.itemId,name:value.name.trim(),sourceUrl:SOURCE_ORIGIN+'/items.php?id='+value.itemId,match:sourceNameKey(value.name)===sourceNameKey(query)?'exact':'candidate'};
 }
-async function localItemBody(request){
- if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))fail('Send JSON item data.','invalid_content_type',415);
- const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;if(reader){try{while(true){const{value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>4096){await reader.cancel().catch(()=>{});fail('The item request is too large.','request_too_large',413);}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}finally{reader.releaseLock();}}
- let data;try{data=JSON.parse(raw);}catch{fail('Send valid JSON item data.','invalid_json');}if(!data||typeof data!=='object'||Array.isArray(data))fail('Send a JSON object.','invalid_json');return data;
-}
+const localItemBody=(request)=>readJson(request,{limit:4096,contentCode:'invalid_content_type',sizeCode:'request_too_large',contentMessage:'Send JSON item data.',jsonMessage:'Send valid JSON item data.'});
 async function fileCatalogItemApi(request,env,context,catalog){
  const url=new URL(request.url),path=url.pathname,match=/^\/api\/items\/(\d+)(\/refresh)?$/.exec(path);
  if(path!=='/api/items'&&path!=='/api/items/search'&&path!=='/api/items/lookup'&&!match)return null;

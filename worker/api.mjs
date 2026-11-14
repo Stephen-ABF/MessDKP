@@ -1,6 +1,7 @@
+import {PASSWORD_ITERATIONS,passwordHash,verifyPassword,validatePassword,authRateLimit} from './passwords.mjs';
+import {HttpError as ApiError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 const encoder = new TextEncoder();
 const COOKIE = '__Host-guild_session';
-const PASSWORD_ITERATIONS = 100000;
 const MAX_BODY = 5 * 1024 * 1024;
 const sessionLife = 7 * 86400;
 const now = () => new Date().toISOString();
@@ -8,39 +9,28 @@ const id = () => crypto.randomUUID();
 const hex = bytes => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
 const random = () => hex(crypto.getRandomValues(new Uint8Array(32)));
 const hash = async value => hex(await crypto.subtle.digest('SHA-256', encoder.encode(value)));
-class ApiError extends Error { constructor(status, code, message) { super(message); this.status = status; this.code = code; } }
 const fail = (status, code, message) => { throw new ApiError(status, code, message); };
 const sql = (db, query, ...params) => db.prepare(query).bind(...params);
 const all = async statement => (await statement.all()).results;
-const publicUser = row => ({ id: row.id, email: row.email, name: row.name, role: row.role });
+const publicUser = row => ({ id: row.id, email: row.email, name: row.name, role: row.role,credentialRevision:row.credentialRevision??row.credential_revision??0,resetRequired:!!(row.resetRequired??row.reset_required) });
 function json(data, status = 200, headers = {}) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...headers } }); }
 function text(value, field, min, max) { if (typeof value !== 'string' || value.trim().length < min || value.trim().length > max) fail(400, 'validation', `${field} must contain ${min}-${max} characters.`); return value.trim(); }
 function integer(value, field, min = 1, max = 1000000) { if (!Number.isSafeInteger(value) || value < min || value > max) fail(400, 'validation', `${field} must be a whole number from ${min} to ${max}.`); return value; }
 function validDate(value) { if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value + 'T00:00:00Z')) || new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) !== value) fail(400, 'validation', 'Use a valid YYYY-MM-DD date.'); return value; }
-async function body(request) {
- if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) fail(415, 'content_type', 'Send JSON data.');
- let raw = '', size = 0; const reader = request.body?.getReader(), decoder = new TextDecoder();
- if (reader) { try { while (true) { const {value,done} = await reader.read(); if (done) break; size += value.byteLength; if (size > MAX_BODY) { await reader.cancel().catch(() => {}); fail(413, 'too_large', 'Upload is too large.'); } raw += decoder.decode(value, {stream:true}); } raw += decoder.decode(); } finally { reader.releaseLock(); } }
- try { const parsed = JSON.parse(raw); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(); return parsed; } catch { fail(400, 'invalid_json', 'Invalid JSON request.'); }
-}
-async function passwordHash(password, salt) {
- const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
- return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: encoder.encode(salt), iterations: PASSWORD_ITERATIONS, hash: 'SHA-256' }, key, 256));
-}
-function sameHex(a, b) { if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false; let diff = 0; for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i); return diff === 0; }
+const body=request=>readJson(request,{limit:MAX_BODY,sizeMessage:'Upload is too large.'});
+const sameHex=constantTimeEqual;
 async function session(request, db) {
  const cookie = request.headers.get('cookie') || ''; const token = cookie.split(';').map(x => x.trim()).find(x => x.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
  if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
- return await sql(db, 'SELECT u.id,u.email,u.name,u.role,s.csrf_token,s.token_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?', await hash(token), Date.now()).first();
+ return await sql(db, "SELECT u.id,u.email,u.name,u.role,u.credential_revision AS credentialRevision,u.reset_required AS resetRequired,s.csrf_token,s.token_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.account_status='active' AND u.reset_required=0", await hash(token), Date.now()).first();
 }
 function cookie(token, age = sessionLife) { return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
 function officer(user) { if (user.role !== 'admin') fail(403, 'forbidden', 'Officer access is required.'); }
-async function rateLimit(db, request, email, action) {
- const bucket = `${action}:${await hash(email + ':' + (request.headers.get('cf-connecting-ip') || 'private'))}`;
- const expiry = Date.now() + (action === 'register' ? 3600000 : 900000);
- const result = await sql(db, 'INSERT INTO auth_limits(key,count,expires_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires_at<? THEN 1 ELSE count+1 END,expires_at=CASE WHEN expires_at<? THEN excluded.expires_at ELSE expires_at END RETURNING count', bucket, expiry, Date.now(), Date.now()).first();
- if (result.count > (action === 'register' ? 5 : 15)) fail(429, 'rate_limit', 'Too many attempts. Please try again later.');
+async function rateLimit(db,request,email,action){
+ const registering=action==='register';await authRateLimit(db,request,email,action+'-ip',{ipOnly:true,maximum:registering?10:60,milliseconds:registering?3600000:900000});
+ await authRateLimit(db,request,email,action,{maximum:registering?5:15,milliseconds:registering?3600000:900000});
 }
+
 function emailInput(value) { const email = text(value, 'Email', 3, 254).toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400, 'validation', 'Enter a valid email address.'); return email; }
 const characterSelect = `SELECT c.id,c.name,c.level,c.class_name AS className,c.guild_rank AS rank,c.kind,c.owner_id AS ownerId,u.name AS ownerName,u.email AS ownerEmail,COALESCE((SELECT SUM(amount) FROM ledger l WHERE l.character_id=c.id),0) AS balance,(SELECT COUNT(*) FROM attendance a WHERE a.character_id=c.id AND a.status='pending') AS pendingTicks FROM characters c LEFT JOIN users u ON u.id=c.owner_id`;
 const claimSelect = `SELECT q.id,q.character_id AS characterId,c.name AS characterName,q.user_id AS userId,u.name AS userName,u.email AS userEmail,q.status,q.kind,q.created_at AS createdAt,q.approved_at AS approvedAt,q.rejected_at AS rejectedAt,q.rejected_by AS rejectedBy,q.rejection_reason AS rejectionReason,c.owner_id AS ownerId,(q.status='approved' AND c.owner_id=q.user_id AND c.kind=q.kind) AS currentlyAssigned,(SELECT a.actor_id FROM audit a WHERE a.action='claim_approved' AND json_valid(a.details) AND json_extract(a.details,'$.claimId')=q.id AND a.created_at=q.approved_at ORDER BY a.id LIMIT 1) AS approvedBy,(SELECT actor.name FROM audit a JOIN users actor ON actor.id=a.actor_id WHERE a.action='claim_approved' AND json_valid(a.details) AND json_extract(a.details,'$.claimId')=q.id AND a.created_at=q.approved_at ORDER BY a.id LIMIT 1) AS assignedBy FROM claims q JOIN characters c ON c.id=q.character_id JOIN users u ON u.id=q.user_id`;
@@ -177,22 +167,47 @@ export async function handleApi(request,env,authorization={}) {
    const token=random(),csrfToken=random(),tokenHash=await hash(token),at=now();let account;
    if(registering) {
     const name=text(input.name,'Display name',2,80),userId=id(),salt=random(),password=await passwordHash(input.password,salt);
-    try { await db.batch([
-     sql(db,`INSERT INTO users(id,email,name,password_hash,salt,role,created_at) SELECT ?,?,?,?,?,CASE WHEN NOT EXISTS(SELECT 1 FROM users) THEN 'admin' ELSE 'member' END,?`,userId,email,name,password,salt,at),
-     sql(db,'INSERT INTO sessions(token_hash,user_id,csrf_token,expires_at) VALUES(?,?,?,?)',tokenHash,userId,csrfToken,Date.now()+sessionLife*1000),
+    try{await db.batch([
+     sql(db,"INSERT INTO users(id,email,name,password_hash,salt,role,created_at,password_iterations,account_status) SELECT ?,?,?,?,?,CASE WHEN NOT EXISTS(SELECT 1 FROM users) THEN 'admin' ELSE 'member' END,?,?,CASE WHEN NOT EXISTS(SELECT 1 FROM users) THEN 'active' ELSE 'pending' END",userId,email,name,password,salt,at,PASSWORD_ITERATIONS),
+     sql(db,"INSERT INTO sessions(token_hash,user_id,csrf_token,expires_at) SELECT ?,id,?,? FROM users WHERE id=? AND account_status='active'",tokenHash,csrfToken,Date.now()+sessionLife*1000,userId),
      sql(db,'INSERT INTO audit(id,actor_id,action,details,created_at) VALUES(?,?,?,?,?)',id(),userId,'account_registered',JSON.stringify({email}),at)
     ]);}catch(error){if(/UNIQUE|users.email/i.test(String(error)))fail(409,'account_exists','An account already uses that email.');throw error;}
-    account=await sql(db,'SELECT id,email,name,role FROM users WHERE id=?',userId).first();
+    account=await sql(db,'SELECT * FROM users WHERE id=?',userId).first();
+    if(account.account_status==='pending')return json({pendingApproval:true,message:'Your account is awaiting officer approval.'},202);
    } else {
-    account=await sql(db,'SELECT * FROM users WHERE email=?',email).first();const salt=account?.salt||'0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';const attempted=await passwordHash(input.password,salt);
-    if(!account||!sameHex(attempted,account.password_hash))fail(401,'invalid_credentials','Email or password is incorrect.');
-    await db.batch([sql(db,'INSERT INTO sessions(token_hash,user_id,csrf_token,expires_at) VALUES(?,?,?,?)',tokenHash,account.id,csrfToken,Date.now()+sessionLife*1000),sql(db,'DELETE FROM sessions WHERE expires_at<=?',Date.now()),auditStmt(db,account,'login',{},at)]);
+    account=await sql(db,'SELECT * FROM users WHERE email=?',email).first();if(!await verifyPassword(input.password,account))fail(401,'invalid_credentials','Email or password is incorrect.');
+    if(account.account_status!=='active')fail(403,'account_pending','Your account is awaiting officer approval.');if(account.reset_required)fail(403,'password_reset_required','Ask an officer for your password reset link.');
+    const oldHash=account.password_hash,oldRevision=account.credential_revision,operation=id(),upgrade=account.password_iterations<PASSWORD_ITERATIONS;
+    const salt=upgrade?random():account.salt,password=upgrade?await passwordHash(input.password,salt):oldHash;
+    const statements=[];if(upgrade)statements.push(sql(db,"UPDATE users SET password_hash=?,salt=?,password_iterations=?,credential_revision=credential_revision+1,credential_operation=? WHERE id=? AND password_hash=? AND credential_revision=? AND account_status='active' AND reset_required=0",password,salt,PASSWORD_ITERATIONS,operation,account.id,oldHash,oldRevision));
+    const revision=oldRevision+(upgrade?1:0);
+    statements.push(sql(db,"INSERT INTO sessions(token_hash,user_id,csrf_token,expires_at) SELECT ?,id,?,? FROM users WHERE id=? AND password_hash=? AND salt=? AND credential_revision=? AND account_status='active' AND reset_required=0",tokenHash,csrfToken,Date.now()+sessionLife*1000,account.id,password,salt,revision),sql(db,'DELETE FROM sessions WHERE expires_at<=?',Date.now()),sql(db,"INSERT INTO audit(id,actor_id,action,details,created_at) SELECT ?,?,'login','{}',? WHERE EXISTS(SELECT 1 FROM sessions WHERE token_hash=?)",id(),account.id,at,tokenHash));
+    await db.batch(statements);if(!await sql(db,'SELECT token_hash FROM sessions WHERE token_hash=?',tokenHash).first())fail(409,'credentials_changed','Your credentials changed during sign-in. Try again.');account={...account,password_hash:password,salt,password_iterations:upgrade?PASSWORD_ITERATIONS:account.password_iterations,credential_revision:revision};
    }
    return json({user:publicUser(account),csrfToken},registering?201:200,{'Set-Cookie':cookie(token)});
   }
+  if(path==='/api/password/reset'&&request.method==='POST'){
+   const input=await body(request);validatePassword(input.newPassword);if(typeof input.token!=='string'||!/^[a-f0-9]{64}$/.test(input.token))fail(400,'invalid_reset','This reset link is invalid or expired.');await rateLimit(db,request,'','reset');
+   const digest=await hash(input.token),reset=await sql(db,'SELECT r.*,u.account_status,u.reset_required FROM account_password_resets r JOIN users u ON u.id=r.user_id WHERE r.token_hash=?',digest).first();if(!reset)fail(400,'invalid_reset','This reset link is invalid or expired.');
+   const salt=random(),password=await passwordHash(input.newPassword,salt),operation=id();const results=await db.batch([
+    sql(db,"UPDATE users SET password_hash=?,salt=?,password_iterations=?,reset_required=0,credential_revision=credential_revision+1,credential_operation=? WHERE id=? AND account_status='active' AND reset_required=1 AND credential_revision=? AND EXISTS(SELECT 1 FROM account_password_resets r WHERE r.user_id=users.id AND r.token_hash=? AND r.credential_revision=users.credential_revision AND r.expires_at>(CAST(strftime('%s','now') AS INTEGER)*1000+CAST(substr(strftime('%f','now'),4,3) AS INTEGER)))",password,salt,PASSWORD_ITERATIONS,operation,reset.user_id,reset.credential_revision,digest),
+    sql(db,'DELETE FROM sessions WHERE user_id=? AND EXISTS(SELECT 1 FROM users WHERE id=? AND credential_operation=?)',reset.user_id,reset.user_id,operation),
+    sql(db,'DELETE FROM account_password_resets WHERE user_id=? AND EXISTS(SELECT 1 FROM users WHERE id=? AND credential_operation=?)',reset.user_id,reset.user_id,operation),
+    sql(db,"INSERT INTO audit(id,actor_id,action,details,created_at) SELECT ?,id,'password_reset_completed',json_object('subjectUserId',id),? FROM users WHERE id=? AND credential_operation=?",operation,now(),reset.user_id,operation)
+   ]);if(!results[0].meta.changes)fail(400,'invalid_reset','This reset link is invalid or expired.');return json({ok:true,message:'Password updated. Sign in with your new password.'});
+  }
   if(!user)fail(401,'authentication_required','Please sign in.');
-  if(request.method==='POST'&&!sameHex(request.headers.get('x-csrf-token'),user.csrf_token))fail(403,'csrf','Refresh your session and try again.');
+  if(request.method==='POST')requireCsrf(request,user.csrf_token);
   if(path==='/api/logout'&&request.method==='POST'){await sql(db,'DELETE FROM sessions WHERE token_hash=?',user.token_hash).run();return json({ok:true},200,{'Set-Cookie':cookie('',0)});}
+  if(path==='/api/password/change'&&request.method==='POST'){
+   const input=await readJson(request,{limit:4096});validatePassword(input.newPassword);await rateLimit(db,request,user.email,'password-change');const account=await sql(db,'SELECT * FROM users WHERE id=?',user.id).first();if(typeof input.currentPassword!=='string'||input.currentPassword.length>128||!await verifyPassword(input.currentPassword,account))fail(403,'invalid_password','Your current password is incorrect.');
+   const salt=random(),password=await passwordHash(input.newPassword,salt),operation=id();const result=await db.batch([
+    sql(db,"UPDATE users SET password_hash=?,salt=?,password_iterations=?,credential_revision=credential_revision+1,credential_operation=? WHERE id=? AND password_hash=? AND credential_revision=? AND account_status='active' AND reset_required=0 AND EXISTS(SELECT 1 FROM sessions WHERE token_hash=? AND user_id=users.id AND expires_at>?)",password,salt,PASSWORD_ITERATIONS,operation,user.id,account.password_hash,account.credential_revision,user.token_hash,Date.now()),
+    sql(db,'DELETE FROM sessions WHERE user_id=? AND token_hash<>? AND EXISTS(SELECT 1 FROM users WHERE id=? AND credential_operation=?)',user.id,user.token_hash,user.id,operation),
+    sql(db,'DELETE FROM account_password_resets WHERE user_id=? AND EXISTS(SELECT 1 FROM users WHERE id=? AND credential_operation=?)',user.id,user.id,operation),
+    sql(db,"INSERT INTO audit(id,actor_id,action,details,created_at) SELECT ?,id,'password_changed',json_object('subjectUserId',id),? FROM users WHERE id=? AND credential_operation=?",operation,now(),user.id,operation)
+   ]);if(!result[0].meta.changes)fail(409,'credentials_changed','Your credentials changed. Sign in again.');return json({ok:true,user:{...publicUser(user),credentialRevision:account.credential_revision+1},csrfToken:user.csrf_token});
+  }
   // The bundled authorization middleware supplies a route-scoped legacy adapter.
   // Client JSON/headers never control this argument, the session identity or CSRF.
   const identityRole=user.role;

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {handleApi} from '../worker/api.mjs';
+import {handleApi as realHandleApi} from '../worker/api.mjs';
+import {activeFixtureWorker,legacyAccountColumns} from './account-fixture.mjs';
+const fixtureApi=activeFixtureWorker({fetch:realHandleApi});const handleApi=(...args)=>{legacyAccountColumns(args[1].DB);return fixtureApi.fetch(...args);};
 import {applicationSchema} from './app-schema.mjs';
 import {createD1} from './d1-adapter.mjs';
 const origin='https://guild.test';

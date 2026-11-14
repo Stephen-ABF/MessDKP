@@ -73,3 +73,7 @@ GET /api/auctions accepts sort=publishedAt|itemId|itemName|quantity|ownBid|close
 Publishing searches GET /api/items with name or ID and a20-result compact limit. Selecting a result calls POST /api/items/lookup to hydrate that uploaded reference; auctionAdmin write access suffices for this one cache action. General item administration remains separately protected. No auction is created until Publish is submitted. A pending publication locks selection until the request finishes.
 
 List controls preserve unsaved publication fields. Wide tables have sortable headings; constrained content uses readable rows and explicit Sort by/Direction selectors. Previous/Next traverse every result, not just the first100. Personal spending totals stay independent of filters and paging. Page/detail hashes support refresh, sign-in return, Back/Forward and sharing. Detail Controls opens only the chosen officer action in a dialog.
+
+## Slot options (0.14)
+
+Distinct slot options are computed only for includeSlots=1, requested when the auction/filter page is first opened. Normal paging/sort/live-filter requests omit that query. Each auction still carries its own publication slots.

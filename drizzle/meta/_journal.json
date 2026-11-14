@@ -120,6 +120,13 @@
       "when": 1794612455022,
       "tag": "0016_account_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1794612455023,
+      "tag": "0017_loot_parcels",
+      "breakpoints": true
     }
   ]
 }

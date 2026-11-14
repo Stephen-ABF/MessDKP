@@ -84,7 +84,7 @@ test('stale row conflict reloads that import without retrying the mutation and k
  const h=harness();h.state.raidLootImportId='import-fixture';h.useRealNavigation();
  h.setRespond(request=>request.method==='PUT'?Response.json({error:'Row changed since review',code:'revision_conflict'},{status:409}):Response.json({import:savedImport({events:[{...savedImport().events[0],revision:8}]})}));
  await h.submit(h.form('exclude-raid-loot',{reason:'Reviewed source event'},{import:'import-fixture',event:'row-fixture',excluded:'true',revision:'7'}));
- assert.deepEqual(h.calls.map(call=>[call.method,call.path]),[['PUT','/api/loot-imports/import-fixture/events/row-fixture'],['GET','/api/loot-imports/import-fixture']]);
+ assert.deepEqual(h.calls.filter(call=>call.path!=='/api/my-balance').map(call=>[call.method,call.path]),[['PUT','/api/loot-imports/import-fixture/events/row-fixture'],['GET','/api/loot-imports/import-fixture']]);
  assert.equal(h.state.raidLootImportId,'import-fixture');assert.equal(h.state.raidLootImport.events[0].revision,8);assert.equal(h.state.lootTab,'raid-import');assert.equal(h.scrolls.at(-1).top,420);assert.match(h.messages.at(-1).message,/Latest import status loaded/);
 });
 

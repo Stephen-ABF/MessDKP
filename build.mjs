@@ -7,6 +7,8 @@ const read = file => readFile(path.join(root, file), 'utf8');
 const exists = async file => { try { await access(path.join(root, file)); return true; } catch { return false; } };
 const packageInfo=JSON.parse(await read('package.json'));
 const version=packageInfo.version;
+const ledgerSource=await read('worker/ledger.mjs');
+const parcelSource=await read('worker/parcels.mjs');
 const httpSource=await read('worker/http.mjs');
 const passwordSource=await read('worker/passwords.mjs');
 const accountSource=await read('worker/accounts.mjs');
@@ -43,7 +45,7 @@ const auditLogSource=await read('worker/audit-log.mjs');
 const optionsSource=await read('worker/member-options.mjs');
 const deviceSource=await read('worker/companion-devices.mjs');
 const stripExports = source => {
-  source=source.replace(/^import\s+\{([^}]+)\}\s+from\s+['"]\.\/(http|passwords)\.mjs['"];?\s*$/gm,(_,names,module)=>'const {'+names.replace(/\bas\b/g,':')+'}='+({http:'httpHelpers',passwords:'passwordHelpers'}[module])+';');
+  source=source.replace(/^import\s+\{([^}]+)\}\s+from\s+['"]\.\/(http|passwords|ledger|parcels)\.mjs['"];?\s*$/gm,(_,names,module)=>'const {'+names.replace(/\bas\b/g,':')+'}='+({http:'httpHelpers',passwords:'passwordHelpers',ledger:'ledgerHelpers',parcels:'parcelHelpers'}[module])+';');
   if (/^\s*import\s/m.test(source)) throw new Error('Worker modules must remain self-contained for this dependency-free bundler.');
   return source.replace(/^export\s+(?=(?:async\s+)?(?:function|const|let|class)\b)/gm, '');
 };
@@ -51,6 +53,8 @@ const withoutRuleImport = auctionSource.replace(/^import\s+\{[^}]+\}\s+from\s+['
 const modules = [
   `const httpHelpers=(()=>{${stripExports(httpSource)};return {HttpError,constantTimeEqual,jsonResponse,requireCsrf,readJson,readText,isReadOnlySql};})();`,
   `const passwordHelpers=(()=>{${stripExports(passwordSource)};return {PASSWORD_ITERATIONS,bytesHex,randomSecret,secretHash,passwordHash,validatePassword,verifyPassword,authRateLimit};})();`,
+  `const ledgerHelpers=(()=>{${stripExports(ledgerSource)};return {ledgerData,mainBalance};})();`,
+  `const parcelHelpers=(()=>{${stripExports(parcelSource)};return {handleParcelApi,PARCEL_ADMIN_SQL,PARCEL_OWNER_SQL,PARCEL_CAN_SQL,resolveAwardHolders,CUSTODY_CTE};})();`,
   `const handleRaidDeletionApi=(()=>{\n${stripExports(raidDeletionSource)}\nreturn handleRaidDeletionApi;\n})();`,
   `const lootHistoryHelpers=(()=>{\n${stripExports(lootHistorySource)}\nreturn {handleLootHistoryApi,handleItemComparisonApi,handleMyAuctionsApi,decorateImportItems};\n})();`,
   `const handleApi=(()=>{\n${stripExports(api)}\nreturn handleApi;\n})();`,
@@ -143,6 +147,7 @@ export default {
         ${auctionSource ? `(url.pathname === '/api/auctions' || url.pathname.startsWith('/api/auctions/')) ? handleAuctionApi :` : ''}
         ${adminSource ? `['/api/settings','/api/adjustments','/api/attendance-requests'].some(p=>url.pathname===p||url.pathname.startsWith(p+'/')) ? handleAdminApi :` : ''}
         (url.pathname==='/api/reports'||url.pathname.startsWith('/api/reports/')) ? handleReportsApi :
+        new RegExp('^/api/loot-history/[^/]+/[^/]+/parcel$').test(url.pathname) ? parcelHelpers.handleParcelApi :
         url.pathname==='/api/loot-history' ? lootHistoryHelpers.handleLootHistoryApi :
         url.pathname==='/api/my-auctions' ? lootHistoryHelpers.handleMyAuctionsApi :
         url.pathname==='/api/item-comparison' ? lootHistoryHelpers.handleItemComparisonApi :

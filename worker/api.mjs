@@ -1,3 +1,4 @@
+import {ledgerData,mainBalance} from './ledger.mjs';
 import {PASSWORD_ITERATIONS,passwordHash,verifyPassword,validatePassword,authRateLimit} from './passwords.mjs';
 import {HttpError as ApiError,readJson,requireCsrf,constantTimeEqual} from './http.mjs';
 const encoder = new TextEncoder();
@@ -197,6 +198,7 @@ export async function handleApi(request,env,authorization={}) {
    ]);if(!results[0].meta.changes)fail(400,'invalid_reset','This reset link is invalid or expired.');return json({ok:true,message:'Password updated. Sign in with your new password.'});
   }
   if(!user)fail(401,'authentication_required','Please sign in.');
+  if(path==='/api/my-balance'&&request.method==='GET')return json(await mainBalance(db,user.id));
   if(request.method==='POST')requireCsrf(request,user.csrf_token);
   if(path==='/api/logout'&&request.method==='POST'){await sql(db,'DELETE FROM sessions WHERE token_hash=?',user.token_hash).run();return json({ok:true},200,{'Set-Cookie':cookie('',0)});}
   if(path==='/api/password/change'&&request.method==='POST'){
@@ -270,7 +272,7 @@ export async function handleApi(request,env,authorization={}) {
    const raid=await sql(db,raidSelect+' WHERE r.id=?',match[1]).first();if(!raid)fail(404,'not_found','Raid not found.');return json({raid,ticks:await all(sql(db,'SELECT id,raid_id AS raidId,file_name AS fileName,source_time AS sourceTime,row_count AS rowCount,created_at AS createdAt FROM ticks WHERE raid_id=? ORDER BY source_time',raid.id)),attendance:await all(sql(db,'SELECT a.id,a.tick_id AS tickId,a.character_id AS characterId,c.name AS characterName,a.class_name AS className,a.zone,a.status,a.dkp FROM attendance a JOIN characters c ON c.id=a.character_id JOIN ticks t ON t.id=a.tick_id WHERE t.raid_id=? ORDER BY t.source_time,c.name',raid.id))});
   }
   if(path==='/api/ledger'&&request.method==='GET') {
-   const own=user.role==='admin'?'':' WHERE c.owner_id=?';return json({entries:await all(sql(db,`SELECT l.id,l.character_id AS characterId,c.name AS characterName,l.amount,l.reason,l.created_at AS createdAt,u.name AS actorName,r.name AS raidName,t.source_time AS sourceTime FROM ledger l JOIN characters c ON c.id=l.character_id JOIN users u ON u.id=l.actor_id LEFT JOIN attendance a ON a.id=l.attendance_id LEFT JOIN ticks t ON t.id=a.tick_id LEFT JOIN raids r ON r.id=t.raid_id${own} ORDER BY l.created_at DESC,l.id DESC LIMIT 500`,...(own?[user.id]:[])))});
+   return json(await ledgerData(db,user,url));
   }
   if(path==='/api/audit'&&request.method==='GET'){officer(user);return json({entries:await all(sql(db,'SELECT a.id,u.name AS actorName,a.action,a.details,a.created_at AS createdAt FROM audit a JOIN users u ON u.id=a.actor_id ORDER BY a.created_at DESC,a.id DESC LIMIT 500'))});}
   fail(404,'not_found','Endpoint not found.');

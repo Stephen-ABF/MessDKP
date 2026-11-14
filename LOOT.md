@@ -37,3 +37,11 @@ File-only matching does not seed bundled item references. Existing published auc
 ## Review usability (0.9)
 
 Import preview/review decorates unique exact uploaded names with available icons in bounded chunks. Ambiguous names remain unresolved. Draft item details include their reference advancedLoot icon identity. Clear Remove from auction / Restore actions reuse audited exclusions and draft revision checks, without erasing original source evidence or changing published auctions.
+
+## Workspace and parcel delivery (0.16.0)
+
+The ledger has aligned adjustment fields, character/recorded-by/UTC date filters, stable sortable headings and50-record pages. The account header shows current approved-main DKP, including negatives. Main lists and profiles omit the account subtitle. Single-item publishing is now Officer workspace > Publish single auction and retains auctionAdmin access checks.
+
+Wish lists use small item icons, name/class/slot/status filters and List or Equipment views. The Equipment view maps wishes to compatible slots, shows alternatives, and opens a slot-scoped catalog search without changing worn gear.
+
+Loot history uses compact item rows and collapsible filters, with raid night, winner, winning bid, award price, holding looter and status. To parcel shows confirmed undelivered awards that the current user may deliver. Imported quantities are allocated to award rank in original export order, skipping excluded source events and retaining original handoff provenance. Only an Administrator template or current approved owning main/alt of the assigned looter may mark parceled; an officer without that identity cannot. Current write access remains necessary. No delivery action deducts DKP. Parcel events are audited and retry safe; delivered items remain in All loot and the member Won view. Migration0017 is additive. Preserve the database and apply numbered migrations in order.

@@ -1,5 +1,6 @@
 const state = {
   user: null,
+  headerDkp: null,
   csrfToken: "",
   sessionEpoch: 0,
   authPending: false,
@@ -72,6 +73,8 @@ let lootHistoryFilters = {
   slot: "",
   type: "",
   winner: "",
+  looter:"",
+  queue:"",
   boss: "",
   from: "",
   to: "",
@@ -92,7 +95,7 @@ let wishlistImport = null,
   wishlistImportVersion = 0,
   auctionFilterTimer = null,
   auctionFilterVersion = 0;
-let wishlistState = { expansion: "Underfoot", query: "", results: [] };
+let wishlistState = { expansion: "Underfoot", query: "", results: [], view:"list", filterName:"", filterSlot:"", filterClass:"", filterStatus:"", addSlot:"" };
 let itemSurfaceVersion = 0,
   itemDialogVersion = 0,
   itemPreviewTimer = null,
@@ -112,7 +115,7 @@ const escape = (value) =>
   );
 const number = (value) => Number(value || 0).toLocaleString("en-US");
 const pageArea = (page) =>
-  ({ dashboard: "overview", profile: "characters", lootHistory: "auctions" })[
+  ({ dashboard: "overview", profile: "characters", lootHistory: "auctions", publishAuction: "auctionAdmin" })[
     page
   ] || page;
 const can = (area, level = "read") =>
@@ -143,6 +146,7 @@ const canEditEquipment = (data) =>
       (can("overview", "write") || can("mains", "write")),
   );
 const officerAreas = [
+  "auctionAdmin",
   "attendance",
   "ledger",
   "items",
@@ -260,7 +264,7 @@ const amount = (value) =>
 const empty = (heading, description, action = "") =>
   `<div class="empty"><h2>${escape(heading)}</h2><p>${escape(description)}</p>${action ? `<div class="actions">${action}</div>` : ""}</div>`;
 const table = (headings, rows, compact = false) =>
-  `<div class="table-wrap${compact ? " compact" : ""}"><table><thead><tr>${headings.map((item) => `<th scope="col">${escape(item)}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+  `<div class="table-wrap item-list${compact ? " compact" : ""}"><table><thead><tr>${headings.map((item) => `<th scope="col">${escape(item)}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 
 async function api(path, { method = "GET", body } = {}) {
   const requestSession = {
@@ -410,6 +414,7 @@ function setSession(user, csrfToken = "", access = null) {
     clearTimeout(auctionFilterTimer);
     auctionFilterVersion++;
     state.sessionEpoch++;
+  state.headerDkp=null;
     state.generation++;
     clearInterval(countdownTimer);
     countdownTimer = null;
@@ -513,7 +518,7 @@ function renderShell() {
     return;
   }
   $("#account-bar").innerHTML =
-    `<div class="identity"><strong>${escape(state.user.name)}</strong><small>${escape(state.access?.profileName || "Guild member")}</small></div><button type="button" class="quiet" data-nav="security">My account</button><button type="button" class="quiet" data-action="logout">Sign out</button>`;
+    `<div class="identity"><strong>${escape(state.user.name)}</strong><small>${escape(state.access?.profileName || "Guild member")}</small></div><span id="header-dkp" class="header-dkp ${state.headerDkp < 0 ? "negative" : ""}" ${Number.isSafeInteger(state.headerDkp)?"":"hidden"}>${escape(number(state.headerDkp))} DKP</span><button type="button" class="quiet" data-nav="security">My account</button><button type="button" class="quiet" data-action="logout">Sign out</button>`;
   const links = [
     ["dashboard", "Overview"],
     ["characters", "Characters"],
@@ -523,6 +528,7 @@ function renderShell() {
     ["lootHistory", "Loot history"],
   ];
   const officer = [
+    ["publishAuction", "Publish single auction"],
     ["attendance", "Attendance"],
     ["ledger", "DKP ledger"],
     ["items", "Item references"],
@@ -639,6 +645,7 @@ function restoreReviewContext(context) {
 }
 
 const routePages = new Set([
+  "publishAuction",
   "security",
   "accounts",
   "dashboard",
@@ -969,6 +976,10 @@ async function navigate(page, recordId = null, detailId = null, options = {}) {
         );
         html = await settingsPage();
         break;
+      case "publishAuction":
+        heading("Publish single auction","Publish one item from the uploaded catalog.","Officer workspace");
+        html=await auctionPublishingPage();
+        break;
       case "auctions":
         html =
           auctionTabs() +
@@ -995,6 +1006,7 @@ async function navigate(page, recordId = null, detailId = null, options = {}) {
     applyAccessControls($("#page-content"));
     startCountdowns();
     startCompanionPolling();
+    void refreshHeaderDkp();
     if (options.preserveContext) restoreReviewContext(options.preserveContext);
     else {
       $("#main").focus({ preventScroll: true });
@@ -1008,7 +1020,9 @@ async function navigate(page, recordId = null, detailId = null, options = {}) {
   }
 }
 async function dashboardPage() {
+  const generation = state.generation;
   const data = await api("/dashboard");
+  if (generation !== state.generation) return "";
   const own = data.characters || [],
     main = own.find((character) => character.kind === "main");
   if (main) return mainAttendancePage(main.id, true);
@@ -1305,10 +1319,34 @@ function importPreview(data) {
     ),
   )}${data.files.some((file) => file.warnings.length) ? `<div class="notice warning section-gap"><strong>Review these warnings</strong><ul class="file-list">${data.files.flatMap((file) => file.warnings.map((warning) => `<li>${escape(file.name)}: ${escape(warning)}</li>`)).join("")}</ul></div>` : ""}<div class="notice section-gap">Approved mains earn the raid rate. Unclaimed names retain pending ticks. Alts earn no main DKP. Duplicate snapshots do not earn credit again.</div><div class="actions"><button type="button" class="primary" data-action="commit-import">Confirm and import this batch</button><button type="button" data-action="cancel-import">Cancel preview</button></div><div data-commit-error class="field-error" role="alert" hidden></div>`;
 }
+function validateFilterDateRange(from,to) {
+ for(const value of [from,to])if(value){const parsed=new Date(value+"T00:00:00Z");if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||value<"0001-01-01"||!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==value)throw new Error("Choose actual recorded dates.");}
+ if(from&&to&&from>to)throw new Error("Start date must be on or before end date.");
+}
+let ledgerFilters={characterId:'',actorId:'',from:'',to:'',sort:'createdAt',direction:'desc',offset:0};
+function ledgerTransactions(data) {
+ const f=ledgerFilters,options=(rows,value)=>rows.map(row=>`<option value="${escape(row.id)}" ${row.id===value?'selected':''}>${escape(row.name)}</option>`).join('');
+ const header=(key,label)=>`<th scope="col" aria-sort="${f.sort===key?(f.direction==='asc'?'ascending':'descending'):'none'}"><button type="button" class="auction-sort-button" data-action="ledger-sort" data-sort="${key}">${label} <span aria-hidden="true">${f.sort===key?(f.direction==='asc'?'↑':'↓'):'↕'}</span></button></th>`;
+ const offset=data.offset||0,limit=data.limit||50,total=data.total??data.entries.length;
+ return `<section class="panel"><div class="panel-head"><h2>DKP transactions</h2><span class="tag">${number(total)} records</span></div><form data-form="filter-ledger" class="ledger-filters"><label>Character<select name="characterId"><option value="">All characters</option>${options(data.characters||[],f.characterId)}</select></label><label>Recorded by<select name="actorId"><option value="">Anyone</option>${options(data.recorders||[],f.actorId)}</select></label><label>From (UTC)<input type="date" name="from" value="${escape(f.from)}"></label><label>To (UTC)<input type="date" name="to" value="${escape(f.to)}"></label><div class="form-actions full"><button type="submit" class="primary">Filter transactions</button><button type="button" data-action="ledger-clear">Clear</button></div><div data-form-error class="field-error full" role="alert" hidden></div></form><div class="table-wrap"><table class="ledger-table"><thead><tr>${header('createdAt','Date')}${header('characterName','Character')}${header('amount','DKP')}<th scope="col">Reason / source</th>${header('actorName','Recorded by')}</tr></thead><tbody>${data.entries.map(entry=>`<tr><td>${escape(exactTime(entry.createdAt))}</td><td>${escape(entry.characterName)}</td><td>${amount(entry.amount)}</td><td>${escape(entry.reason)}${entry.raidName?`<span class="muted">${escape(entry.raidName)}${entry.sourceTime?' | '+escape(sourceTime(entry.sourceTime)):''}</span>`:''}</td><td>${escape(entry.actorName)}</td></tr>`).join('')}</tbody></table></div>${data.entries.length?'':empty('No matching DKP transactions','Change the filters to see other records.')}<nav class="form-actions" aria-label="Ledger pages"><button type="button" data-action="ledger-page" data-offset="${Math.max(0,offset-limit)}" ${offset===0?'disabled':''}>Previous</button><span role="status">${total?number(offset+1)+'–'+number(offset+data.entries.length)+' of '+number(total):'0 records'}</span><button type="button" data-action="ledger-page" data-offset="${offset+limit}" ${offset+data.entries.length>=total?'disabled':''}>Next</button></nav></section>`;
+}
+let headerBalanceVersion=0;
+async function refreshHeaderDkp() {
+ const epoch=state.sessionEpoch,id=state.user?.id,version=++headerBalanceVersion;
+ if(!id)return;
+ try {
+  const data=await api('/my-balance');
+  if(epoch!==state.sessionEpoch||id!==state.user?.id||version!==headerBalanceVersion)return;
+  state.headerDkp=Number.isSafeInteger(data.balance)?data.balance:null;
+  const badge=$('#header-dkp');
+  if(badge){badge.hidden=state.headerDkp===null;badge.textContent=number(state.headerDkp)+' DKP';badge.classList.toggle('negative',state.headerDkp<0);}
+ }catch(error){if(epoch===state.sessionEpoch&&id===state.user?.id&&version===headerBalanceVersion){state.headerDkp=null;const badge=$('#header-dkp');if(badge)badge.hidden=true;}}
+}
+
 async function ledgerPage() {
   const generation = state.generation;
-  const [{ entries }, characterData] = await Promise.all([
-    api("/ledger"),
+  const [data, characterData] = await Promise.all([
+    api("/ledger?" + new URLSearchParams(ledgerFilters)),
     can("ledger", "write")
       ? api("/ledger/characters")
       : Promise.resolve({ characters: [] }),
@@ -1317,22 +1355,9 @@ async function ledgerPage() {
   if (generation === state.generation && state.page === "ledger")
     state.adjustmentCharacters = adjustmentCharacters;
   const adjustmentForm = can("ledger", "write")
-    ? `<section class="panel"><div class="panel-head"><div><h2>Officer DKP adjustment</h2><p>Record a separate, audited change. Original attendance and award entries are preserved.</p></div></div>${adjustmentCharacters.length ? `<form data-form="adjust-dkp" data-idempotency-key="${crypto.randomUUID()}"><div class="form-grid"><label>Main character<select name="characterId" id="adjustment-character" required><option value="">Choose an approved main</option>${adjustmentCharacters.map((character) => `<option value="${escape(character.id)}" ${state.adjustmentCharacterId === character.id ? "selected" : ""}>${escape(character.name)} | ${escape(number(character.balance))} DKP</option>`).join("")}</select></label><label>Signed DKP amount<input name="amount" id="adjustment-amount" type="number" step="1" placeholder="5 or -5" required><small>Positive adds DKP; negative subtracts it. Zero is not an adjustment.</small></label><label class="full">Reason for the adjustment<textarea name="reason" maxlength="1000" rows="3" required></textarea></label></div><p class="small muted section-gap" id="adjustment-projection">Choose a main and amount to preview the balance.</p><div class="form-actions"><button type="submit" class="primary">Record DKP adjustment</button></div><div data-form-error class="field-error" role="alert" hidden></div></form>` : empty("No approved main to adjust", "Approve a character claim as main before posting an adjustment.")}</section>`
+    ? `<section class="panel"><div class="panel-head"><div><h2>Adjust DKP</h2><p>Record a separate, audited change. Original attendance and award entries are preserved.</p></div></div>${adjustmentCharacters.length ? `<form class="ledger-adjustment" data-form="adjust-dkp" data-idempotency-key="${crypto.randomUUID()}"><div class="form-grid"><label>Main character<select name="characterId" id="adjustment-character" required><option value="">Choose an approved main</option>${adjustmentCharacters.map((character) => `<option value="${escape(character.id)}" ${state.adjustmentCharacterId === character.id ? "selected" : ""}>${escape(character.name)} | ${escape(number(character.balance))} DKP</option>`).join("")}</select></label><label>Signed DKP amount<input name="amount" id="adjustment-amount" type="number" step="1" placeholder="5 or -5" required><small>Positive adds DKP; negative subtracts it. Zero is not an adjustment.</small></label><label class="full">Reason for the adjustment<textarea name="reason" maxlength="1000" rows="3" required></textarea></label></div><p class="small muted section-gap" id="adjustment-projection">Choose a main and amount to preview the balance.</p><div class="form-actions"><button type="submit" class="primary">Record DKP adjustment</button></div><div data-form-error class="field-error" role="alert" hidden></div></form>` : empty("No approved main to adjust", "Approve a character claim as main before posting an adjustment.")}</section>`
     : "";
-  return `${adjustmentForm}<section class="panel"><div class="panel-head"><div><h2>DKP transactions</h2><p>Newest entries first. This test build shows up to 500 entries.</p></div></div>${
-    entries.length
-      ? table(
-          ["Character", "Amount", "Reason / source", "Recorded by", "Date"],
-          entries.map(
-            (entry) =>
-              `<tr><td>${escape(entry.characterName)}</td><td class="amount">${amount(entry.amount)}</td><td>${escape(entry.reason)}${entry.raidName ? `<span class="muted">${escape(entry.raidName)}${entry.sourceTime ? ` | ${escape(sourceTime(entry.sourceTime))}` : ""}</span>` : ""}</td><td>${escape(entry.actorName)}</td><td>${escape(date(entry.createdAt))}</td></tr>`,
-          ),
-        )
-      : empty(
-          "No DKP posted yet",
-          "Approved-main attendance credits and confirmed adjustments or awards will appear here.",
-        )
-  }</section>`;
+  return `${adjustmentForm}${ledgerTransactions(data)}`;
 }
 function actionLabel(value) {
   return String(value || "")
@@ -1587,7 +1612,7 @@ async function personalAuctionsPage() {
     ),
     won = auctionTab === "won";
   const holders = (row) =>
-    row.holdingLooters?.length
+    Object.hasOwn(row,"assignedLooter") ? escape(row.assignedLooter || "Holding looter not recorded") : row.holdingLooters?.length
       ? `${row.holdingLooters.map((l) => `<span class="holder-name">${escape(l.name)} <small class="muted">(${number(l.quantity)} ${l.quantity === 1 ? "copy" : "copies"})</small></span>`).join("")}${row.holdingLooters.length > 1 ? '<span class="muted">Multiple recorded holders. Ask an officer which copy to collect.</span>' : ""}`
       : '<span class="muted">Holding looter not recorded</span>';
   return `<section class="panel"><div class="panel-head"><div><h2>${won ? "Auctions you won" : "Auctions you lost"}</h2><p>${won ? "Your settled winning bids and the holding looters recorded in the raid-night import." : "Your final active bids that did not receive an award. The gap compares your bid with the lowest winning bid; ties follow the published tie-break rules."}</p></div><span class="tag">${number(data.total)} auctions</span></div>${
@@ -1614,7 +1639,7 @@ async function personalAuctionsPage() {
               ],
           data.rows.map(
             (r) =>
-              `<tr><td>${itemTrigger(r.itemId, r.itemName, r)}</td><td>${escape(r.characterName)}</td><td>${escape(r.bossName || "Boss not recorded")}<span class="muted">${escape(r.raidName || "No raid linked")}${r.raidDate ? " | " + escape(date(r.raidDate)) : ""}</span></td><td>${number(r.yourBid)} DKP</td>${won ? `<td>${number(r.price)} DKP<span class="muted">${r.awardStatus === "confirmed" ? "Confirmed" : "Pending officer confirmation"}</span></td><td>${holders(r)}</td>` : `<td>${r.lowestWinningBid === null ? "-" : number(r.lowestWinningBid) + " DKP"}</td><td>${!r.eligible ? "Ineligible at close" : r.lowestWinningBid === null ? "No winning award" : r.bidGap === 0 ? "Lost tie-break" : number(r.bidGap) + " DKP below winning cutoff"}</td>`}<td><button type="button" data-action="open-auction" data-auction="${escape(r.auctionId)}">View auction</button></td></tr>`,
+              `<tr><td>${itemTrigger(r.itemId, r.itemName, r)}</td><td>${escape(r.characterName)}</td><td>${escape(r.bossName || "Boss not recorded")}<span class="muted">${escape(r.raidName || "No raid linked")}${r.raidDate ? " | " + escape(date(r.raidDate)) : ""}</span></td><td>${number(r.yourBid)} DKP</td>${won ? `<td>${number(r.price)} DKP<span class="muted">${r.parceledAt ? "Parceled" : r.awardStatus === "confirmed" ? "Confirmed" : "Pending officer confirmation"}</span></td><td>${holders(r)}</td>` : `<td>${r.lowestWinningBid === null ? "-" : number(r.lowestWinningBid) + " DKP"}</td><td>${!r.eligible ? "Ineligible at close" : r.lowestWinningBid === null ? "No winning award" : r.bidGap === 0 ? "Lost tie-break" : number(r.bidGap) + " DKP below winning cutoff"}</td>`}<td><button type="button" data-action="open-auction" data-auction="${escape(r.auctionId)}">View auction</button></td></tr>`,
           ),
         )
       : empty(
@@ -1704,52 +1729,12 @@ const itemTypeLabel = (value) =>
       ? "None"
       : "Type " + value;
 async function lootHistoryPage() {
-  const data = await api(
-      "/loot-history?" + new URLSearchParams(lootHistoryFilters),
-    ),
-    f = lootHistoryFilters;
-  const choice = (name, label, rows) =>
-    `<label>${label}<select name="${name}"><option value="">All</option>${rows.map(([value, text]) => `<option value="${escape(value)}" ${f[name] === value ? "selected" : ""}>${escape(text)}</option>`).join("")}</select></label>`;
-  return `<section class="panel"><div class="panel-head"><div><h2>Loot awarded across the guild</h2><p>Each winner has a separate entry. Pending awards await officer confirmation; unsold auctions have no winner.</p></div><span class="tag">${number(data.total)} records</span></div><form data-form="filter-loot-history" class="history-filters"><label>Item name<input type="search" name="q" value="${escape(f.q)}" maxlength="120"></label>${choice("class", "Usable by", classChoices)}${choice(
-    "slot",
-    "Equipment slot",
-    data.slots.map((s) => [s, s]),
-  )}${choice(
-    "type",
-    "Recorded item type",
-    data.types.map((s) => [s, itemTypeLabel(s)]),
-  )}<label>Winner<input name="winner" value="${escape(f.winner)}" maxlength="120"></label><label>Boss<input name="boss" value="${escape(f.boss)}" maxlength="120"></label><label>Raid date from<input type="date" name="from" value="${escape(f.from)}"></label><label>Raid date to<input type="date" name="to" value="${escape(f.to)}"></label>${choice(
-    "status",
-    "Award status",
-    [
-      ["confirmed", "Confirmed"],
-      ["pending", "Pending confirmation"],
-      ["unsold", "Unsold"],
-    ],
-  )}<div class="form-actions"><button type="submit" class="primary">Filter history</button><button type="button" data-action="reset-loot-history">Clear filters</button></div><div data-form-error class="field-error full" role="alert" hidden></div></form>${
-    data.rows.length
-      ? table(
-          [
-            "Item / equipment",
-            "Boss",
-            "Raid night / date",
-            "Winner",
-            "Winning bid",
-            "Award price",
-            "Status",
-            "Auction",
-          ],
-          data.rows.map(
-            (r) =>
-              `<tr><td>${itemTrigger(r.itemId, r.itemName, r)}<span class="muted">${escape(metadataList(r.slots))} | ${escape(metadataList(r.classes))}${r.itemType !== null ? " | " + escape(itemTypeLabel(r.itemType)) : ""}</span></td><td>${escape(r.bossName || "Not recorded")}</td><td>${escape(r.raidName || "No raid linked")}<span class="muted">${escape(r.raidDate ? date(r.raidDate) : "Raid date not recorded")}</span></td><td>${escape(r.winnerName || "No winner")}</td><td>${r.winningBid !== null ? number(r.winningBid) + " DKP" : "-"}</td><td>${r.price !== null ? number(r.price) + " DKP" : "-"}</td><td><span class="tag">${r.awardStatus === "confirmed" ? "Confirmed" : r.awardStatus === "pending" ? "Pending confirmation" : "Unsold"}</span></td><td><button type="button" data-action="open-auction" data-auction="${escape(r.auctionId)}">View results</button></td></tr>`,
-          ),
-        )
-      : empty(
-          "No matching completed auctions",
-          "Change the filters, or complete an auction to see its results here.",
-        )
-  }<div class="form-actions"><button type="button" data-action="loot-history-page" data-offset="${Math.max(0, data.offset - data.limit)}" ${data.offset === 0 ? "disabled" : ""}>Previous</button><span class="small muted">${data.total ? number(data.offset + 1) + "-" + number(Math.min(data.offset + data.rows.length, data.total)) + " of " + number(data.total) : "0 records"}</span><button type="button" data-action="loot-history-page" data-offset="${data.offset + data.limit}" ${data.offset + data.limit >= data.total ? "disabled" : ""}>Next</button></div></section>`;
+ const data=await api('/loot-history?'+new URLSearchParams(lootHistoryFilters)),f=lootHistoryFilters;
+ const choice=(name,label,rows)=>`<label>${label}<select name="${name}"><option value="">All</option>${rows.map(([value,text])=>`<option value="${escape(value)}" ${f[name]===value?'selected':''}>${escape(text)}</option>`).join('')}</select></label>`;
+ const offset=data.offset||0,limit=data.limit||50,total=data.total||0;
+ return `<section class="panel"><div class="panel-head"><h2>Loot history</h2><nav class="character-tabs" aria-label="Loot history views"><button type="button" data-action="parcel-queue" data-queue="" ${!f.queue?'aria-current="page"':''}>All loot</button><button type="button" data-action="parcel-queue" data-queue="mine" ${f.queue==='mine'?'aria-current="page"':''}>To parcel</button></nav></div><details class="history-filter-panel" ${state.historyFiltersOpen?'open':''}><summary>Filters${Object.entries(f).filter(([key,value])=>!['queue','offset'].includes(key)&&value).length?' · Active':''}</summary><form data-form="filter-loot-history" class="history-filters"><label>Item name<input type="search" name="q" value="${escape(f.q)}" maxlength="120"></label>${choice('class','Usable by',classChoices)}${choice('slot','Equipment slot',(data.slots||[]).map(slot=>[slot,slot]))}${choice('type','Recorded item type',(data.types||[]).map(type=>[type,itemTypeLabel(type)]))}<label>Winner<input name="winner" value="${escape(f.winner)}" maxlength="120"></label>${choice('looter','Holding looter',(data.looters||[]).map(name=>[name,name]))}<label>Raid date from<input type="date" name="from" value="${escape(f.from)}"></label><label>Raid date to<input type="date" name="to" value="${escape(f.to)}"></label>${choice('status','Status',[['pending','Pending confirmation'],['confirmed','Confirmed / awaiting parcel'],['parceled','Parceled'],['unsold','Unsold']])}<div class="form-actions full"><button type="submit" class="primary">Filter history</button><button type="button" data-action="reset-loot-history">Clear filters</button></div><div data-form-error class="field-error full" role="alert" hidden></div></form></details>${data.rows.length?`<div class="table-wrap item-list"><table class="loot-history-table"><thead><tr>${['Item','Raid night','Winner','Winning bid','Award price','Looter','Status'].map(label=>`<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data.rows.map(row=>`<tr><td>${itemTrigger(row.itemId,row.itemName,row)}<span class="muted small">${escape(metadataList(row.slots))} · ${escape(metadataList(row.classes))}</span><button type="button" class="text-button small" data-action="open-auction" data-auction="${escape(row.auctionId)}">Auction details</button></td><td>${escape(row.raidName||'No raid linked')}<span class="muted small">${row.raidDate?escape(date(row.raidDate)):''}</span></td><td>${escape(row.winnerName||'No winner')}</td><td class="numeric">${row.winningBid===null?'-':number(row.winningBid)+' DKP'}</td><td class="numeric">${row.price===null?'-':number(row.price)+' DKP'}</td><td>${escape(row.looterName||'Not recorded')}</td><td><span class="tag ${row.parceledAt?'fulfilled-tag':''}">${row.parceledAt?'Parceled':row.awardStatus==='confirmed'?'Confirmed':row.awardStatus==='pending'?'Pending confirmation':'Unsold'}</span>${row.parceledAt?`<span class="small muted">${escape(exactTime(row.parceledAt))}</span>`:''}${row.canParcel?`<form data-form="parcel-loot" data-auction="${escape(row.auctionId)}" data-character="${escape(row.characterId)}" data-holder="${escape(row.holderEventId||'')}"><label class="parcel-check"><input type="checkbox" name="parceled" required data-parcel-check> Mark parceled</label><div data-form-error class="field-error" role="alert" hidden></div></form>`:''}</td></tr>`).join('')}</tbody></table></div>`:empty(f.queue?'No confirmed items to parcel':'No matching loot history',f.queue?'Your parcel queue is clear. Parceled items remain in All loot.':'Change the filters to see other awards.')}<nav class="form-actions" aria-label="Loot history pages"><button type="button" data-action="loot-history-page" data-offset="${Math.max(0,offset-limit)}" ${offset===0?'disabled':''}>Previous</button><span role="status">${total?number(offset+1)+'–'+number(offset+data.rows.length)+' of '+number(total):'0 records'}</span><button type="button" data-action="loot-history-page" data-offset="${offset+limit}" ${offset+data.rows.length>=total?'disabled':''}>Next</button></nav></section>`;
 }
+
 async function auctionWishMatches() {
   try {
     const data = await api("/wishlist/auction-matches");
@@ -1758,6 +1743,15 @@ async function auctionWishMatches() {
     if (error.silent) throw error;
     return new Set();
   }
+}
+async function auctionPublishingPage() {
+  const [selectedData,settingsData]=await Promise.all([state.auctionDraftItemId?api("/items/"+state.auctionDraftItemId):Promise.resolve({item:null}),api("/settings")]);
+  const selected = selectedData.item;
+  const unknown = Boolean(selected && selected.name === null);
+  const creation = can("auctionAdmin", "write")
+    ? `<section class="panel"><div class="panel-head"><div><h2>Publish single auction</h2><p>Publishing opens bidding immediately for exactly 24 hours.</p></div>${can("items", "read") ? '<button type="button" data-nav="items">Manage item references</button>' : ""}</div><div class="auction-item-picker"><label for="auction-catalog-query">Find an item in the uploaded catalog<input id="auction-catalog-query" type="search" maxlength="120" autocomplete="off" placeholder="Search item name or exact item ID" aria-describedby="auction-picker-status"></label><p id="auction-picker-status" class="small muted" role="status">Type a name or ID to search the entire catalog.</p><ul id="auction-picker-results" class="auction-picker-results"></ul></div><form data-form="create-auction"><div class="form-grid"><label class="full">Selected item<select name="itemId" id="auction-item-reference" required><option value="">Search and select an item above</option>${selected ? `<option value="${escape(selected.itemId)}" data-unresolved="${selected.name === null}" selected>${escape(selected.name || "Unresolved item")} | ID ${escape(selected.itemId)}</option>` : ""}</select></label><label class="full" id="auction-title-label" ${unknown ? "" : "hidden"}>Item name from the game<input name="title" id="auction-game-title" maxlength="200" ${unknown ? "required" : "disabled"}></label><label>Number of copies<input name="quantity" type="number" min="1" max="50" step="1" value="1" required></label><label>Minimum bid and price<input name="minimumBid" type="number" min="1" max="1000000" step="1" value="${escape(settingsData.settings.minimumBid)}" required></label></div><div class="form-actions"><button type="submit" class="primary">Publish 24-hour auction</button></div><div data-form-error class="field-error" role="alert" hidden></div></form></section>`
+    : "";
+  return creation || empty("Publication write access required","Ask an administrator for auction management access.");
 }
 async function auctionsPage() {
   const wishItemIds = await auctionWishMatches();
@@ -1769,19 +1763,8 @@ async function auctionsPage() {
     offset: auctionOffset,
     includeSlots: 1,
   });
-  const [data, selectedData, settingsData] = await Promise.all([
-    api(`/auctions?${query}`),
-    can("auctionAdmin", "write") && state.auctionDraftItemId
-      ? api("/items/" + state.auctionDraftItemId)
-      : Promise.resolve({ item: null }),
-    can("auctionAdmin", "write") ? api("/settings") : Promise.resolve(null),
-  ]);
-  const selected = selectedData.item;
-  const unknown = Boolean(selected && selected.name === null);
-  const creation = can("auctionAdmin", "write")
-    ? `<section class="panel"><div class="panel-head"><div><h2>Publish a sealed auction</h2><p>Publishing opens bidding immediately for exactly 24 hours.</p></div>${can("items", "read") ? '<button type="button" data-nav="items">Manage item references</button>' : ""}</div><div class="auction-item-picker"><label for="auction-catalog-query">Find an item in the uploaded catalog<input id="auction-catalog-query" type="search" maxlength="120" autocomplete="off" placeholder="Search item name or exact item ID" aria-describedby="auction-picker-status"></label><p id="auction-picker-status" class="small muted" role="status">Type a name or ID to search the entire catalog.</p><ul id="auction-picker-results" class="auction-picker-results"></ul></div><form data-form="create-auction"><div class="form-grid"><label class="full">Selected item<select name="itemId" id="auction-item-reference" required><option value="">Search and select an item above</option>${selected ? `<option value="${escape(selected.itemId)}" data-unresolved="${selected.name === null}" selected>${escape(selected.name || "Unresolved item")} | ID ${escape(selected.itemId)}</option>` : ""}</select></label><label class="full" id="auction-title-label" ${unknown ? "" : "hidden"}>Item name from the game<input name="title" id="auction-game-title" maxlength="200" ${unknown ? "required" : "disabled"}></label><label>Number of copies<input name="quantity" type="number" min="1" max="50" step="1" value="1" required></label><label>Minimum bid and price<input name="minimumBid" type="number" min="1" max="1000000" step="1" value="${escape(settingsData.settings.minimumBid)}" required></label></div><div class="form-actions"><button type="submit" class="primary">Publish 24-hour auction</button></div><div data-form-error class="field-error" role="alert" hidden></div></form></section>`
-    : "";
-  return `${creation}<section class="panel"><div class="panel-head"><div><h2>Guild auctions</h2><p>Other bidders, amounts, and participation remain hidden until the server deadline.</p></div><button type="button" data-action="refresh-auctions">Refresh</button></div><div id="auction-bid-summary">${auctionBidSummary(data.activeBidSummary)}</div><form data-form="filter-auctions" class="item-filters"><label>Item name<input name="q" type="search" value="${escape(state.auctionFilters.q)}" maxlength="120" placeholder="Search auctions"></label><label>Usable by<select name="class"><option value="">Any class</option>${classChoices.map(([code, name]) => `<option value="${code}" ${state.auctionFilters.class === code ? "selected" : ""}>${name}</option>`).join("")}</select></label><label>Equipment slot<select name="slot"><option value="">Any slot</option>${(data.slots || []).map((slot) => `<option value="${escape(slot)}" ${state.auctionFilters.slot === slot ? "selected" : ""}>${escape(slot)}</option>`).join("")}</select></label><label>Status<select name="status">${[
+  const data = await api(`/auctions?${query}`);
+  return `<section class="panel"><div class="panel-head"><div><h2>Guild auctions</h2><p>Other bidders, amounts, and participation remain hidden until the server deadline.</p></div><button type="button" data-action="refresh-auctions">Refresh</button></div><div id="auction-bid-summary">${auctionBidSummary(data.activeBidSummary)}</div><form data-form="filter-auctions" class="item-filters"><label>Item name<input name="q" type="search" value="${escape(state.auctionFilters.q)}" maxlength="120" placeholder="Search auctions"></label><label>Usable by<select name="class"><option value="">Any class</option>${classChoices.map(([code, name]) => `<option value="${code}" ${state.auctionFilters.class === code ? "selected" : ""}>${name}</option>`).join("")}</select></label><label>Equipment slot<select name="slot"><option value="">Any slot</option>${(data.slots || []).map((slot) => `<option value="${escape(slot)}" ${state.auctionFilters.slot === slot ? "selected" : ""}>${escape(slot)}</option>`).join("")}</select></label><label>Status<select name="status">${[
     ["open", "Open"],
     ["closed", "Closed"],
     ["cancelled", "Cancelled"],
@@ -2384,13 +2367,13 @@ async function mainsPage() {
       (group) =>
         `<section class="panel"><div class="panel-head"><h2>${escape(group.className)}</h2><span class="tag">${escape(number(group.mains.length))} mains</span></div><div class="mains-table">${table(
           [
-            "Main / member",
+            "Main",
             "Current DKP",
             ...attendanceWindows.map(([, label]) => label),
           ],
           group.mains.map(
             (main) =>
-              `<tr><td><button type="button" class="text-button" data-action="main-attendance" data-character="${escape(main.id)}">${escape(main.name)}</button><span class="muted">${escape(main.ownerName || "-")}</span></td><td class="amount ${main.balance < 0 ? "negative" : ""}">${escape(number(main.balance))}</td>${attendanceWindows.map(([key]) => `<td>${attendanceValue(main.windows[key])}</td>`).join("")}</tr>`,
+              `<tr><td><button type="button" class="text-button" data-action="main-attendance" data-character="${escape(main.id)}">${escape(main.name)}</button></td><td class="amount ${main.balance < 0 ? "negative" : ""}">${escape(number(main.balance))}</td>${attendanceWindows.map(([key]) => `<td>${attendanceValue(main.windows[key])}</td>`).join("")}</tr>`,
           ),
         )}</div></section>`,
     )
@@ -2406,6 +2389,7 @@ async function mainAttendancePage(characterId, overview = false) {
     api(`/reports/mains/${encodeURIComponent(characterId)}/loot`),
     api(`/characters/${encodeURIComponent(characterId)}/equipment`),
   ]);
+  if (generation !== state.generation) return "";
   if (generation === state.generation) {
     state.equipment = equipment;
     state.equipmentLoot = (lootData.loot || []).filter(
@@ -2419,10 +2403,10 @@ async function mainAttendancePage(characterId, overview = false) {
     ownsMain =
       equipment.character.ownerId === state.user?.id &&
       equipment.character.kind === "main";
-  const profileHeader = `${overview ? "" : '<div class="toolbar"><button type="button" data-nav="mains">Back to all mains</button></div>'}<section class="panel"><div class="panel-head"><div><h2>${escape(main.name)}</h2><p>${escape(main.className)} | ${escape(main.ownerName || "-")}</p></div><strong class="main-balance numeric ${main.balance < 0 ? "negative" : ""}">${escape(number(main.balance))} current DKP</strong></div></section>`;
+  const profileHeader = `${overview ? "" : '<div class="toolbar"><button type="button" data-nav="mains">Back to all mains</button></div>'}<section class="panel"><div class="panel-head"><div><h2>${escape(main.name)}</h2><p>${escape(main.className)}</p></div><strong class="main-balance numeric ${main.balance < 0 ? "negative" : ""}">${escape(number(main.balance))} current DKP</strong></div></section>`;
   const tabs = inventoryTabs(equipment);
   if (state.profileTab === "wishlist")
-    return profileHeader + tabs + (await wishlistPanel(equipment));
+    return profileHeader + tabs + (await wishlistPanel(equipment,generation));
   if (state.profileTab === "inventory" && canEditEquipment(equipment))
     return profileHeader + tabs + inventoryPanel(equipment);
   return `${profileHeader}${tabs}${equipmentPanel(equipment)}<section class="panel"><h2>Attendance overview</h2>${overview ? reportFilter([], characterId).replace('data-form="filter-mains"', 'data-form="filter-overview"') : reportFilter([], characterId)}<div class="attendance-window-grid section-gap">${attendanceWindows.map(([key, label]) => `<section><h3>${label}</h3>${attendanceValue(main.windows[key])}<p class="small muted">${data.windows[key].startDate ? `${escape(date(data.windows[key].startDate))} through ` : "All recorded dates through "}${escape(date(data.asOf))}</p></section>`).join("")}</div></section><section class="panel"><div class="panel-head"><h2>Attendance by raid</h2><span class="tag">Tick-based check-ins</span></div>${
@@ -2446,11 +2430,13 @@ async function characterProfilePage(characterId) {
   const equipment = await api(
     `/characters/${encodeURIComponent(characterId)}/equipment`,
   );
+  if (generation !== state.generation) return "";
   const loot =
     equipment.character.kind === "main"
       ? (await api(`/reports/mains/${encodeURIComponent(characterId)}/loot`))
           .loot || []
       : [];
+  if (generation !== state.generation) return "";
   if (generation === state.generation) {
     state.equipment = equipment;
     state.equipmentLoot = loot.filter((entry) => entry.status === "confirmed");
@@ -2458,41 +2444,39 @@ async function characterProfilePage(characterId) {
   const profileHeader = `<div class="toolbar"><button type="button" data-nav="characters">Back to character registry</button></div><section class="panel"><div class="panel-head"><div><h2>${escape(equipment.character.name)}</h2><p>${escape(equipment.character.className)} | ${escape(equipment.character.kind || "Unclassified")}</p></div>${equipment.character.kind === "main" ? `<button type="button" data-action="main-attendance" data-character="${escape(characterId)}">DKP, attendance and loot</button>` : ""}</div></section>`;
   const tabs = inventoryTabs(equipment);
   if (state.profileTab === "wishlist")
-    return profileHeader + tabs + (await wishlistPanel(equipment));
+    return profileHeader + tabs + (await wishlistPanel(equipment,generation));
   if (state.profileTab === "inventory" && canEditEquipment(equipment))
     return profileHeader + tabs + inventoryPanel(equipment);
   return `${profileHeader}${tabs}${equipmentPanel(equipment)}${equipment.character.kind === "main" ? mainLootSection(loot) : ""}`;
 }
-async function wishlistPanel(equipment) {
-  const data = await api(
-      "/characters/" +
-        encodeURIComponent(equipment.character.id) +
-        "/wishlist?" +
-        new URLSearchParams({ expansion: wishlistState.expansion }),
-    ),
-    editable = data.canEdit && canEditEquipment(equipment);
-  return `<section class="panel"><div class="panel-head"><div><h2>${escape(data.character.name)}'s wish list</h2><p>Plan desired gear for each expansion. Saved wishes do not place bids or change equipment.</p></div><span class="tag">${number(data.items.length)} items</span></div><form data-form="filter-wishlist" class="wishlist-expansion"><label>Expansion<select name="expansion">${data.expansions.map((name) => `<option value="${escape(name)}" ${name === data.expansion ? "selected" : ""}>${escape(name)}</option>`).join("")}</select></label><button type="submit">Open wish list</button>${editable ? '<label>Or create another expansion list<input name="newExpansion" maxlength="80" placeholder="Expansion name"></label>' : ""}<div data-form-error class="field-error full" role="alert" hidden></div></form><h3 class="section-gap">${escape(data.expansion)}</h3>${
-    data.items.length
-      ? table(
-          [
-            "Desired item",
-            "Equipment slots",
-            "Usable classes",
-            ...(editable ? ["Action"] : []),
-          ],
-          data.items.map(
-            (item) =>
-              `<tr class="${item.fulfilledAt ? "wish-completed" : ""}"><td>${itemTrigger(item.itemId, item.name, item)}${item.fulfilledAt ? '<span class="tag">Won and equipped</span>' : ""}</td><td>${escape(metadataList(item.slots))}</td><td>${escape(metadataList(item.classes))}</td>${editable ? `<td>${item.fulfilledAt ? `<form data-form="reopen-wishlist" data-item="${escape(item.itemId)}" data-operation="${escape(item.operationId)}"><button type="submit">Want again</button><div data-form-error class="field-error" role="alert" hidden></div></form>` : ""}<form data-form="remove-wishlist" data-item="${escape(item.itemId)}" data-operation="${escape(item.operationId)}"><button type="submit">Remove wish</button><div data-form-error class="field-error" role="alert" hidden></div></form></td>` : ""}</tr>`,
-          ),
-        )
-      : empty(
-          "No items on this wish list",
-          editable
-            ? "Search the uploaded item catalog below to add desired gear."
-            : "No desired items have been saved for this expansion.",
-        )
-  }${editable ? `${wishlistImportPanel()}<form data-form="search-wishlist" class="wishlist-search section-gap"><label>Find an item in the uploaded catalog<input type="search" name="q" minlength="2" maxlength="120" value="${escape(wishlistState.query)}" placeholder="Item name or ID" required></label><button type="submit">Search items</button><div data-form-error class="field-error full" role="alert" hidden></div></form><div id="wishlist-results">${wishlistState.results.length ? wishlistSearchResults(wishlistState.results) : ""}</div>` : ""}</section>`;
+let wishlistDisplay=null;
+let wishlistSearchVersion=0;
+function wishlistDesiredItems(data,editable) {
+ const f=wishlistState;
+ const items=data.items.filter(item=>(!f.filterName||item.name.toLowerCase().includes(f.filterName.toLowerCase()))&&(!f.filterSlot||(item.slots||[]).includes(f.filterSlot))&&(!f.filterClass||(item.classes||[]).includes('ALL')||(item.classes||[]).includes(f.filterClass))&&(!f.filterStatus||(f.filterStatus==='fulfilled'?Boolean(item.fulfilledAt):!item.fulfilledAt)));
+ const actions=item=>editable?`${item.fulfilledAt?`<form data-form="reopen-wishlist" data-item="${escape(item.itemId)}" data-operation="${escape(item.operationId)}"><button type="submit">Want again</button><div data-form-error class="field-error" role="alert" hidden></div></form>`:''}<form data-form="remove-wishlist" data-item="${escape(item.itemId)}" data-operation="${escape(item.operationId)}"><button type="submit">Remove</button><div data-form-error class="field-error" role="alert" hidden></div></form>`:'';
+ const status=item=>`<span class="tag ${item.fulfilledAt?'fulfilled-tag':'wish-tag'}">${item.fulfilledAt?'Won and equipped':'Needed'}</span>`;
+ if(f.view==='equipment')return `<div class="equipment-board wishlist-board" aria-label="Desired equipment"><div class="equipment-identity"><div class="class-sigil" aria-hidden="true">${escape(classChoices.find(([,name])=>name===wishlistDisplay?.equipment.character.className)?.[0]||'EQ')}</div><strong>${escape(data.character.name)}</strong><small>Wish list equipment</small></div>${comparisonSlots.map(([key,label,source])=>{const choices=items.filter(item=>(item.slots||[]).includes(source)||(item.slots||[]).includes('ALL'));return `<div class="gear-slot gear-${key}"><span class="gear-label">${label}</span>${choices.map(item=>`<div class="wish-slot-choice ${item.fulfilledAt?'wish-completed':''}">${itemTrigger(item.itemId,item.name,item)}${status(item)}</div>`).join('')}${editable?`<button type="button" class="gear-empty" data-action="wishlist-slot" data-slot="${source}" aria-label="Add a wish for ${label}">+ <span>${choices.length?'Add alternative':'Add wish'}</span></button>`:choices.length?'':'<span class="muted small">No wishes</span>'}</div>`;}).join('')}</div>`;
+ return items.length?`<div class="table-wrap item-list"><table class="wishlist-table"><thead><tr><th scope="col">Desired item</th><th scope="col">Equipment slots</th><th scope="col">Usable classes</th><th scope="col">Status</th>${editable?'<th scope="col">Actions</th>':''}</tr></thead><tbody>${items.map(item=>`<tr class="${item.fulfilledAt?'wish-completed':''}"><td>${itemTrigger(item.itemId,item.name,item)}<span class="muted small">ID ${escape(item.itemId)} · ${escape(data.expansion)}</span></td><td>${escape(metadataList(item.slots))}</td><td>${escape(metadataList(item.classes))}</td><td>${status(item)}</td>${editable?`<td><div class="wishlist-row-actions">${actions(item)}</div></td>`:''}</tr>`).join('')}</tbody></table></div>`:empty('No matching desired items','Change the filters or add items below.');
 }
+function refreshWishlistDesired() {
+ if(!wishlistDisplay||wishlistDisplay.generation!==state.generation||wishlistDisplay.epoch!==state.sessionEpoch)return;
+ const target=$('#wishlist-desired-items');if(!target)return;
+ target.innerHTML=wishlistDesiredItems(wishlistDisplay.data,wishlistDisplay.editable);applyAccessControls(target);
+ $('#wishlist-match-count').textContent=target.querySelectorAll('tbody tr').length?`${target.querySelectorAll('tbody tr').length} shown`:'';
+}
+async function wishlistPanel(equipment,expectedGeneration=state.generation) {
+ if(expectedGeneration!==state.generation)return "";
+ if(wishlistState.characterId!==equipment.character.id){Object.assign(wishlistState,{characterId:equipment.character.id,filterName:'',filterSlot:'',filterClass:'',filterStatus:'',addSlot:'',query:'',results:[]});wishlistSearchVersion++;}
+ const generation=state.generation,epoch=state.sessionEpoch;
+ const data=await api('/characters/'+encodeURIComponent(equipment.character.id)+'/wishlist?'+new URLSearchParams({expansion:wishlistState.expansion}));
+ const editable=data.canEdit&&canEditEquipment(equipment);
+ if(generation===state.generation&&epoch===state.sessionEpoch)wishlistDisplay={data,equipment,editable,generation,epoch};
+ const f=wishlistState,slots=[...new Set([...data.items.flatMap(item=>item.slots||[]),...(f.filterSlot?[f.filterSlot]:[])])].sort();
+ const options=(values,selected)=>values.map(([key,label])=>`<option value="${escape(key)}" ${selected===key?'selected':''}>${escape(label)}</option>`).join('');
+ return `<section class="panel wishlist-panel"><div class="panel-head"><h2>${escape(data.character.name)}'s desired items</h2><nav class="character-tabs" aria-label="Wish list views"><button type="button" data-action="wishlist-view" data-view="list" ${f.view!=='equipment'?'aria-current="page"':''}>List</button><button type="button" data-action="wishlist-view" data-view="equipment" ${f.view==='equipment'?'aria-current="page"':''}>Equipment</button></nav></div><form data-form="filter-wishlist" class="wishlist-expansion"><label>Expansion<select name="expansion">${data.expansions.map(name=>`<option ${name===data.expansion?'selected':''}>${escape(name)}</option>`).join('')}</select></label><button type="submit">Open wish list</button>${editable?'<label>New expansion list<input name="newExpansion" maxlength="80" placeholder="Expansion name"></label>':''}<div data-form-error class="field-error full" role="alert" hidden></div></form><div class="wishlist-filters"><label>Item name<input type="search" data-wishlist-filter="filterName" value="${escape(f.filterName||'')}" placeholder="Search desired items"></label><label>Equipment slot<select data-wishlist-filter="filterSlot"><option value="">All slots</option>${options(slots.map(slot=>[slot,slot]),f.filterSlot)}</select></label><label>Usable by<select data-wishlist-filter="filterClass"><option value="">All classes</option>${options(classChoices,f.filterClass)}</select></label><label>Status<select data-wishlist-filter="filterStatus">${options([['','All statuses'],['needed','Needed'],['fulfilled','Won and equipped']],f.filterStatus||'')}</select></label></div><p id="wishlist-match-count" class="small muted" role="status" aria-live="polite"></p><div id="wishlist-desired-items">${wishlistDesiredItems(data,editable)}</div>${editable?`<section class="wishlist-add-section"><h3 id="wishlist-add-heading">Add desired items${f.addSlot?' · '+escape(f.addSlot):''}</h3><form data-form="search-wishlist" class="wishlist-search section-gap"><label>Find an item in the uploaded catalog<input type="search" name="q" minlength="2" maxlength="120" value="${escape(f.query)}" placeholder="Item name or ID" required></label><input type="hidden" name="slot" value="${escape(f.addSlot||'')}"><button type="submit">Search items</button><button type="button" data-action="wishlist-any-slot" ${f.addSlot?"":"hidden"}>Any slot</button><div data-form-error class="field-error full" role="alert" hidden></div></form><div id="wishlist-results">${f.results.length?wishlistSearchResults(f.results):''}</div></section>${wishlistImportPanel()}`:''}</section>`;
+}
+
 function clearWishlistImport() {
   wishlistImport = null;
   wishlistImportVersion++;
@@ -4571,6 +4555,25 @@ document.addEventListener("click", async (event) => {
         personalAuctionOffset = Number(action.dataset.offset) || 0;
         await navigate("auctions");
         break;
+      case "ledger-sort":
+        ledgerFilters.direction=ledgerFilters.sort===action.dataset.sort&&ledgerFilters.direction==='asc'?'desc':'asc';ledgerFilters.sort=action.dataset.sort;ledgerFilters.offset=0;
+        await navigate('ledger',null,null,{preserveContext:reviewContext(action)});break;
+      case "ledger-page":
+        ledgerFilters.offset=Number(action.dataset.offset)||0;await navigate('ledger',null,null,{preserveContext:reviewContext(action)});break;
+      case "ledger-clear":
+        ledgerFilters={characterId:'',actorId:'',from:'',to:'',sort:'createdAt',direction:'desc',offset:0};await navigate('ledger');break;
+      case "parcel-queue":
+        lootHistoryFilters.queue=action.dataset.queue==='mine'?'mine':'';lootHistoryFilters.status='';lootHistoryFilters.offset=0;await navigate('lootHistory',null,null,{preserveContext:reviewContext(action)});break;
+      case "wishlist-view":
+        wishlistState.view=action.dataset.view==='equipment'?'equipment':'list';
+        document.querySelectorAll('[data-action="wishlist-view"]').forEach(button=>{if(button===action)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
+        refreshWishlistDesired();break;
+      case "wishlist-slot":
+        wishlistState.addSlot=action.dataset.slot;wishlistState.query='';wishlistState.results=[];wishlistSearchVersion++;$('[data-action="wishlist-any-slot"]').hidden=false;
+        {const form=$('[data-form="search-wishlist"]');if(form){form.querySelector('[name="slot"]').value=wishlistState.addSlot;form.querySelector('[name="q"]').value='';$('#wishlist-add-heading').textContent='Add desired items · '+wishlistState.addSlot;$('#wishlist-results').innerHTML='';form.querySelector('[name="q"]').focus();form.scrollIntoView({block:'center'});}}
+        break;
+      case "wishlist-any-slot":
+        wishlistState.addSlot='';wishlistState.results=[];wishlistState.query='';wishlistSearchVersion++;action.hidden=true;$('#wishlist-results').innerHTML='';{const form=$('[data-form="search-wishlist"]');if(form){form.querySelector('[name="slot"]').value='';form.querySelector('[name="q"]').value='';}$('#wishlist-add-heading').textContent='Add desired items';}break;
       case "reset-loot-history":
         lootHistoryFilters = {
           q: "",
@@ -4578,6 +4581,8 @@ document.addEventListener("click", async (event) => {
           slot: "",
           type: "",
           winner: "",
+          looter:"",
+          queue:"",
           boss: "",
           from: "",
           to: "",
@@ -4742,6 +4747,8 @@ document.addEventListener("click", async (event) => {
   }
 });
 document.addEventListener("input", (event) => {
+  if(event.target.matches?.('[data-wishlist-filter]')){wishlistState[event.target.dataset.wishlistFilter]=event.target.value;refreshWishlistDesired();return;}
+
   if (event.target.id === "auction-catalog-query") {
     clearTimeout(auctionPickerTimer);
     const input = event.target,
@@ -4783,6 +4790,9 @@ document.addEventListener("input", (event) => {
   }
 });
 document.addEventListener("change", (event) => {
+  if(event.target.matches?.('[data-wishlist-filter]')){wishlistState[event.target.dataset.wishlistFilter]=event.target.value;refreshWishlistDesired();return;}
+  if(event.target.matches?.('[data-parcel-check]')&&event.target.checked){event.target.closest('form').requestSubmit();return;}
+
   if (
     event.target.id === "auction-sort-key" ||
     event.target.id === "auction-sort-direction"
@@ -5658,10 +5668,11 @@ document.addEventListener("submit", async (event) => {
           throw new Error(
             "Enter at least two characters of the item name or ID.",
           );
+        const searchVersion=++wishlistSearchVersion;
         const data = await api(
-          path + "/search?" + new URLSearchParams({ q: query }),
+          path + "/search?" + new URLSearchParams({ q: query, slot:String(values.slot||"") }),
         );
-        if (form.isConnected && submissionGeneration === state.generation) {
+        if (form.isConnected && submissionGeneration === state.generation && searchVersion===wishlistSearchVersion) {
           wishlistState.query = query;
           wishlistState.results = data.items;
           $("#wishlist-results").innerHTML = wishlistSearchResults(
@@ -5677,6 +5688,7 @@ document.addEventListener("submit", async (event) => {
             String(values.expansion || "Underfoot");
           wishlistState.results = [];
           wishlistState.query = "";
+          wishlistState.filterName="";wishlistState.filterSlot="";wishlistState.filterClass="";wishlistState.filterStatus="";wishlistState.addSlot="";
         } else
           await api(path, {
             method: ["add-wishlist", "reopen-wishlist"].includes(kind)
@@ -5704,7 +5716,17 @@ document.addEventListener("submit", async (event) => {
           });
         }
       }
+    } else if (kind === "parcel-loot") {
+      await api(`/loot-history/${encodeURIComponent(form.dataset.auction)}/${encodeURIComponent(form.dataset.character)}/parcel`,{method:"POST",body:{parceled:true,holderEventId:form.dataset.holder||null}});
+      if(form.isConnected&&submissionGeneration===state.generation){await navigate("lootHistory",null,null,{preserveContext:savedReviewContext});flash("Marked parceled. The delivery record remains in All loot.");}
+    } else if (kind === "filter-ledger") {
+      const next=Object.fromEntries(["characterId","actorId","from","to"].map(key=>[key,String(values[key]||"").trim()]));
+      validateFilterDateRange(next.from,next.to);
+      Object.assign(ledgerFilters,next);
+      ledgerFilters.offset=0;await navigate("ledger",null,null,{preserveContext:savedReviewContext});
     } else if (kind === "filter-loot-history") {
+      validateFilterDateRange(String(values.from||"").trim(),String(values.to||"").trim());
+      const queue=lootHistoryFilters.queue||"";
       lootHistoryFilters = Object.fromEntries(
         [
           "q",
@@ -5712,14 +5734,16 @@ document.addEventListener("submit", async (event) => {
           "slot",
           "type",
           "winner",
+          "looter",
           "boss",
           "from",
           "to",
           "status",
         ].map((k) => [k, String(values[k] || "").trim()]),
       );
+      lootHistoryFilters.queue=queue;
       lootHistoryFilters.offset = 0;
-      await navigate("lootHistory");
+      await navigate("lootHistory",null,null,{preserveContext:savedReviewContext});
     } else if (kind === "filter-auctions") {
       state.auctionFilters = {
         q: String(values.q || "").trim(),
@@ -6189,6 +6213,7 @@ document.addEventListener("submit", async (event) => {
       });
     }
     if (form.isConnected) {
+      if(kind==="parcel-loot"){const checkbox=form.querySelector("[data-parcel-check]");if(checkbox)checkbox.checked=false;}
       lockForm(form, false);
       if (form.dataset.inventoryConflict === "true")
         form
@@ -6245,4 +6270,5 @@ $("#auction-control-dialog")?.addEventListener("close", () => {
   auctionControlOpener = null;
   if (opener?.isConnected) opener.focus({ preventScroll: true });
 });
+document.addEventListener('toggle',event=>{if(event.target.matches?.('.history-filter-panel'))state.historyFiltersOpen=event.target.open;},true);
 start();

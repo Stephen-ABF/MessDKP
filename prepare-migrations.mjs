@@ -58,11 +58,11 @@ if(!journalData.entries.some(entry=>entry.tag==='0004_character_equipment')){
  journalData.entries.push({idx:4,version:'6',when:Date.now(),tag:'0004_character_equipment',breakpoints:true});
  await writeFile(journal,JSON.stringify(journalData,null,2)+'\n','utf8');
 }
-for(const [idx,tag,file]of [[5,'0005_attendance_eligibility','attendance-eligibility.sql'],[6,'0006_access_profiles','access.sql'],[7,'0007_companion_devices','companion-devices.sql'],[8,'0008_uploaded_item_catalog','catalog.sql'],[9,'0009_inventory_imports','inventory.sql'],[10,'0010_spell_names','spell-names.sql'],[11,'0011_raid_loot_imports','raid-loot-import.sql'],[12,'0012_attendance_clones','attendance-clones.sql'],[13,'0013_auction_management','auction-management.sql'],[14,'0014_raid_deletion','raid-deletion.sql'],[15,'0015_character_wishlist','wishlist.sql'],[16,'0016_account_safety','account-safety.sql']]){
+for(const [idx,tag,file]of [[5,'0005_attendance_eligibility','attendance-eligibility.sql'],[6,'0006_access_profiles','access.sql'],[7,'0007_companion_devices','companion-devices.sql'],[8,'0008_uploaded_item_catalog','catalog.sql'],[9,'0009_inventory_imports','inventory.sql'],[10,'0010_spell_names','spell-names.sql'],[11,'0011_raid_loot_imports','raid-loot-import.sql'],[12,'0012_attendance_clones','attendance-clones.sql'],[13,'0013_auction_management','auction-management.sql'],[14,'0014_raid_deletion','raid-deletion.sql'],[15,'0015_character_wishlist','wishlist.sql'],[16,'0016_account_safety','account-safety.sql'],[17,'0017_loot_parcels','parcels.sql']]){
  const addition=(await readFile(path.join(root,'worker',file),'utf8')).split(idx>=14?/(?=^(?:CREATE|INSERT|ALTER|UPDATE|DROP)\s)/m:idx===13?/(?=^(?:CREATE|INSERT|ALTER|UPDATE)\s)/m:/(?=^(?:CREATE|INSERT)\s)/m).map(s=>s.trim()).filter(Boolean).join('\n--> statement-breakpoint\n')+'\n';
  const target=path.join(directory,tag+'.sql');let previous;try{previous=await readFile(target,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
  if(previous&&previous!==addition)throw new Error('Applied migration '+tag+' differs. Append a migration instead.');
  if(!previous)await writeFile(target,addition,'utf8');
  if(!journalData.entries.some(entry=>entry.tag===tag)){journalData.entries.push({idx,version:'6',when:Date.now(),tag,breakpoints:true});await writeFile(journal,JSON.stringify(journalData,null,2)+'\n','utf8');}
 }
-console.log('Prepared ordered migrations through scoped raid deletion and character wish lists. Existing guild records are retained.');
+console.log('Prepared ordered migrations through account safety and loot parcel records. Existing guild records are retained.');

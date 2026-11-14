@@ -604,6 +604,45 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 }
 @media(pointer:coarse){.auction-inline-amount input{height:44px;font-size:16px}.auction-inline-entry>button{min-height:44px}.auction-inline-amount>span:last-child{top:13px}}
 
+/* Shared compact item rows and officer/member workspaces. */
+.header-dkp{padding:7px 12px;border:1px solid var(--good);border-radius:7px;color:var(--good);font-size:14px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.header-dkp.negative{color:var(--bad);border-color:var(--bad)}
+.ledger-adjustment .form-grid{align-items:start}
+.ledger-adjustment label{align-content:start;align-self:start}
+.ledger-adjustment select,.ledger-adjustment input{min-height:44px}
+.ledger-filters,.wishlist-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.ledger-filters .full{grid-column:1/-1}
+.ledger-table td{vertical-align:middle}.ledger-table td:nth-child(3){white-space:nowrap;font-variant-numeric:tabular-nums}
+.ledger-table th .auction-sort-button{font-size:15px;font-weight:700}
+.item-list th{font-size:15px;font-weight:700;color:var(--ink)}
+.item-list td{padding:11px 10px;vertical-align:middle}
+.item-list .item-link{display:inline-flex;align-items:center;gap:10px;max-width:100%;text-align:left;font-size:14px;line-height:1.35;font-weight:600;white-space:normal;overflow-wrap:anywhere}
+.item-list .item-link img.eq-item-icon{width:32px;height:32px;flex:0 0 32px;object-fit:contain}
+.item-list td>.small,.item-list td>.muted{display:block;margin-top:4px}
+.item-list td button:not(.item-link){min-height:32px;padding:5px 9px;font-size:12px}
+.wishlist-table,.loot-history-table{width:100%;border-collapse:collapse}
+.wishlist-table td:first-child{min-width:200px}
+.wishlist-row-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.wishlist-row-actions form{margin:0}
+.wishlist-filters label{font-size:12px}.wishlist-filters input,.wishlist-filters select{font-size:13px}
+.wishlist-add-section{border-top:1px solid var(--line);margin-top:22px;padding-top:18px}
+.wish-slot-choice+.wish-slot-choice{margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+.wish-slot-choice .tag{font-size:10px;padding:1px 5px;margin-top:4px}
+.wishlist-board .gear-empty{min-height:35px;padding:6px;font-size:13px;margin-top:7px}
+.wishlist-board .gear-empty span{font-size:11px}
+.wishlist-board .gear-slot{min-height:100px}
+.fulfilled-tag{background:light-dark(#e7f5ec,#214e39);color:var(--good)}
+.history-filter-panel{border:1px solid var(--line);border-radius:8px;padding:11px 14px;margin:12px 0 18px}
+.history-filter-panel>summary{font-weight:600;cursor:pointer;width:max-content}
+.history-filter-panel[open]>summary{margin-bottom:14px}
+.loot-history-table{min-width:920px}.loot-history-table th{white-space:normal;font-size:13px}.loot-history-table td:first-child{min-width:210px;width:27%}
+.loot-history-table td:last-child{min-width:125px}.loot-history-table .tag{white-space:nowrap}.loot-history-table td:nth-child(2){min-width:95px}.loot-history-table td:nth-child(6){min-width:85px}
+.loot-history-table td:nth-child(4),.loot-history-table td:nth-child(5){white-space:nowrap}
+.parcel-check{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px;min-height:36px}
+.parcel-check input{width:18px;height:18px;min-height:18px;flex:0 0 18px;margin:0;accent-color:var(--accent)}
+@media(max-width:900px){.ledger-filters,.wishlist-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.ledger-filters,.wishlist-filters{grid-template-columns:1fr}.wishlist-panel .panel-head{display:block}.wishlist-panel .character-tabs{margin-top:12px}.ledger-table{min-width:600px}.wishlist-table{min-width:620px}}
+
 /* Compact EQ item windows: three aligned stat columns instead of long sections. */
 .eq-pane{background:#050607;color:#f0f0f0;border:2px solid #aaa4c5;box-shadow:inset 0 0 0 1px #343347;padding:11px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.25}
 .eq-item-heading{gap:9px;margin-bottom:5px}.eq-item-heading h2,.eq-item-heading h3{color:#43ff36;font-size:14px;line-height:1.2;font-weight:700}

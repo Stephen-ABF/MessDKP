@@ -16,6 +16,8 @@ export async function authorizeRoute(request,db,auth){
  if((match=/^\/api\/raids\/[^/]+\/(delete-preview|delete)$/.exec(path)))return managed('attendance',3);
  if((match=/^\/api\/characters\/([^/]+)\/wishlist(?:\/(?:search|import-preview))?$/.exec(path))){if(!read){if(!await owned(match[1]))throw new AuthorizationError('Only the approved character owner can edit its wish list.');return any(['overview','mains'],3);}if(await owned(match[1]))return any(['overview','mains','characters'],2);return any(['mains','characters'],2);}
  if(path==='/api/accounts'||path.startsWith('/api/accounts/'))return managed('accounts');
+ if(path==='/api/my-balance'&&read)return {grants:[],legacyRole:'member'};
+ if(/^\/api\/loot-history\/[^/]+\/[^/]+\/parcel$/.test(path))return any(['auctions','auctionAdmin'],3);
  if(path==='/api/dashboard')return one('overview',2);
  if(path==='/api/loot-history')return any(['auctions','auctionAdmin'],2);
  if(path==='/api/my-auctions')return any(['auctions','auctionAdmin'],2);

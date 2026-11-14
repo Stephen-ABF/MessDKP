@@ -545,7 +545,7 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
  .sidebar[data-open] #navigation{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
  .sidebar nav button{white-space:normal;min-width:0;justify-content:flex-start;text-align:left}
 }
-@container auction-list (max-width:900px){
+@container auction-list (max-width:840px){
  .auction-mobile-sort{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:12px 0}
  .auction-mobile-sort label{font-size:12px}
  .auction-table colgroup,.auction-table thead{display:none}
@@ -559,12 +559,50 @@ summary { cursor: pointer; font-size: 13px; font-weight: 600; }
  .auction-copy-count:before,.auction-your-bid:before,.auction-time:before{content:attr(data-label);display:block;font-size:12px;line-height:1.3;font-weight:600;color:var(--muted);margin-bottom:4px}
  .auction-item-link{min-height:40px}.auction-row-meta{margin-left:50px;max-width:calc(100% - 50px)}
 }
-@container auction-list (min-width:500px) and (max-width:900px){
+@container auction-list (min-width:500px) and (max-width:840px){
  .auction-table .auction-row{grid-template-columns:70px minmax(0,1fr) 100px 170px;gap:10px}
  .auction-table .auction-item-cell{grid-column:2/4}.auction-table .auction-row-actions{grid-column:4;grid-row:1/3;align-self:center}
  .auction-table .auction-copy-count{grid-column:1}.auction-table .auction-your-bid{grid-column:2}.auction-table .auction-time{grid-column:3}
 }
 @container auction-list (max-width:499px){.auction-row-meta{margin-left:0;max-width:100%}}
+
+/* Inline bidding, approved concept B: saved amount separate from new entry. */
+.auction-inline-table .auction-entry-column{width:176px}
+.auction-inline-table .auction-id-column{width:66px}
+.auction-inline-table .auction-copies-column{width:76px}
+.auction-inline-table .auction-bid-column{width:102px}
+.auction-inline-table .auction-time-column{width:98px}
+.auction-inline-table .auction-actions-column{width:150px}
+.auction-inline-form{margin:0;min-width:0}
+.auction-inline-entry{display:grid;grid-template-columns:minmax(0,1fr) 68px;gap:7px;align-items:center}
+.auction-inline-amount{position:relative;display:block;margin:0}
+.auction-inline-amount input{width:100%;height:36px;min-width:0;margin:0;padding:7px 32px 7px 9px;border-radius:6px;font-size:14px;font-variant-numeric:tabular-nums;appearance:textfield}
+.auction-inline-amount input::-webkit-inner-spin-button{appearance:none}
+.auction-inline-amount>span:last-child{position:absolute;right:7px;top:9px;font-size:11px;color:var(--muted);pointer-events:none}
+.auction-inline-entry>button{min-height:36px;padding:6px 7px;border-radius:6px;font-size:12px}
+.auction-inline-form>small{display:block;margin-top:4px;font-size:11px}
+.auction-inline-form .field-error{font-size:12px;margin-top:5px}
+.auction-inline-form [data-inline-status]:not(:empty){color:var(--good);margin-top:4px}
+.auction-inline-table .auction-row-actions .auction-view-button{background:var(--panel);color:var(--ink);border-color:var(--line)}
+@container auction-list (max-width:840px){
+ .auction-inline-table .auction-row{grid-template-columns:62px minmax(0,1fr) 90px}
+ .auction-inline-table .auction-item-cell{grid-column:1/-1;grid-row:1}
+ .auction-inline-table .auction-inline-cell{grid-column:1/3;grid-row:3}
+ .auction-inline-table .auction-inline-cell:before{content:attr(data-label);display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
+ .auction-inline-table .auction-row-actions{grid-column:3;grid-row:3;align-self:center}
+ .auction-inline-table .auction-pill-actions{flex-wrap:wrap}
+ .auction-inline-form{max-width:260px}
+}
+@container auction-list (min-width:650px) and (max-width:840px){
+ .auction-inline-table .auction-row{grid-template-columns:62px minmax(0,1fr) 82px 176px}
+ .auction-inline-table .auction-item-cell{grid-column:1/4;grid-row:1}
+ .auction-inline-table .auction-copy-count{grid-column:1;grid-row:2}
+ .auction-inline-table .auction-your-bid{grid-column:2;grid-row:2}
+ .auction-inline-table .auction-time{grid-column:3;grid-row:2}
+ .auction-inline-table .auction-inline-cell{grid-column:4;grid-row:1}
+ .auction-inline-table .auction-row-actions{grid-column:4;grid-row:2}
+}
+@media(pointer:coarse){.auction-inline-amount input{height:44px;font-size:16px}.auction-inline-entry>button{min-height:44px}.auction-inline-amount>span:last-child{top:13px}}
 
 /* Compact EQ item windows: three aligned stat columns instead of long sections. */
 .eq-pane{background:#050607;color:#f0f0f0;border:2px solid #aaa4c5;box-shadow:inset 0 0 0 1px #343347;padding:11px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.25}

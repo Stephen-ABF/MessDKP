@@ -170,6 +170,7 @@ const mutationAreas = {
   "create-auction": "auctionAdmin",
   "manage-auction": "auctionAdmin",
   "place-bid": "auctions",
+  "inline-place-bid": "auctions",
   "preview-raid-loot": "loot",
   "commit-raid-loot": "loot",
   "exclude-raid-loot": "loot",
@@ -1962,6 +1963,68 @@ function auctionPagination(data) {
     total = Number(data.total ?? data.auctions.length);
   return `<nav class="auction-pagination form-actions" aria-label="Auction pages"><button type="button" data-action="auction-page" data-page-direction="previous" data-offset="${Math.max(0, offset - limit)}" ${offset === 0 ? "disabled" : ""}>Previous</button><span role="status" tabindex="-1" data-page-position>${data.auctions.length ? number(offset + 1) + " - " + number(offset + data.auctions.length) : "0"} of ${number(total)}</span><button type="button" data-action="auction-page" data-page-direction="next" data-offset="${offset + limit}" ${offset + data.auctions.length >= total ? "disabled" : ""}>Next</button></nav>`;
 }
+const inlineBidPending = new Set();
+function inlineAuctionBidForm(auction) {
+  if (auction.status !== "open") return "";
+  if (!can("auctions", "write")) return '<span class="small muted">Read-only</span>';
+  const eligibility = auction.ownEligibility, limit = currentBidLimit(eligibility);
+  if (!eligibility?.eligible || limit === null || limit < auction.minimumBid)
+    return `<span class="small muted">${escape(eligibility?.reason || (limit === null ? "Refresh to load your DKP." : `Max ${number(limit)} DKP; minimum ${number(auction.minimumBid)}.`))}</span>`;
+  const busy = inlineBidPending.has(`${state.sessionEpoch}:${auction.id}`);
+  return `<form data-form="inline-place-bid" data-auction="${escape(auction.id)}" data-limit="${escape(limit)}" data-minimum="${escape(auction.minimumBid)}" class="auction-inline-form"><div class="auction-inline-entry"><label class="auction-inline-amount"><span class="auction-visually-hidden">New bid for ${escape(auction.itemName)}</span><input name="amount" type="number" min="${escape(auction.minimumBid)}" max="${escape(limit)}" step="1" inputmode="numeric" autocomplete="off" required ${busy ? "disabled" : ""}><span aria-hidden="true">DKP</span></label><button type="submit" class="primary" ${busy ? "disabled" : ""}>${busy ? "Saving…" : auction.ownBid ? "Update" : "Bid"}</button></div><small class="muted">Min ${escape(number(auction.minimumBid))} · Max ${escape(number(limit))}</small><div data-form-error class="field-error" role="alert" hidden></div><div data-inline-status class="small" role="status" aria-live="polite"></div></form>`;
+}
+async function submitInlineAuctionBid(form) {
+  const id = form.dataset.auction, pendingKey = `${state.sessionEpoch}:${id}`;
+  if (inlineBidPending.has(pendingKey) || !form.isConnected || !can("auctions", "write")) return;
+  const input = form.querySelector('[name="amount"]'), amount = Number(input.value);
+  if (!Number.isSafeInteger(amount) || amount < Number(form.dataset.minimum) || amount > Number(form.dataset.limit)) {
+    formError(form, `Enter a whole bid from ${number(form.dataset.minimum)} to ${number(form.dataset.limit)} DKP.`);
+    return;
+  }
+  const generation = state.generation, epoch = state.sessionEpoch;
+  const current = () => generation === state.generation && epoch === state.sessionEpoch && state.page === "auctions" && !state.auctionId;
+  formError(form, "");
+  inlineBidPending.add(pendingKey); lockForm(form, true);
+  try {
+    await api(`/auctions/${encodeURIComponent(id)}/bid`, {method:"PUT", body:{amount}});
+    if (!current()) return;
+    // Keep the accepted bid visible even if the following list refresh fails.
+    const row = [...document.querySelectorAll('[data-auction-row]')].find(candidate => candidate.dataset.auctionRow === id);
+    if (row) {
+      row.classList.add("bid-placed");
+      row.querySelector('.auction-your-bid').innerHTML = `<strong>${escape(number(amount))}</strong> <small>DKP</small>`;
+      const tag = row.querySelector('.bid-tag');
+      if (tag) {tag.textContent = `Bid ${number(amount)}`;tag.setAttribute('aria-label', `You have bid ${number(amount)} DKP`);}
+    }
+    // Only clear the accepted amount; retain drafts in every other row.
+    for (const candidate of document.querySelectorAll('[data-form="inline-place-bid"]'))
+      if (candidate.dataset.auction === id) candidate.querySelector('[name="amount"]').value = "";
+    const filters = $('[data-form="filter-auctions"]');
+    if (filters) await refreshAuctionFilters(filters, ++auctionFilterVersion, {skipInlineDraft:id});
+    if (!current()) return;
+    const displayed = [...document.querySelectorAll('[data-form="inline-place-bid"]')].find(candidate => candidate.dataset.auction === id);
+    if (displayed) displayed.querySelector('[data-inline-status]').textContent = `Saved ${number(amount)} DKP.`;
+    else flash(`Your ${number(amount)} DKP bid was saved.`);
+  } catch (error) {
+    if (current() && !error.silent) {
+      const displayed = [...document.querySelectorAll('[data-form="inline-place-bid"]')].find(candidate => candidate.dataset.auction === id);
+      if (displayed) {
+        formError(displayed, error.message);
+      } else flash(error.message, true);
+    }
+  } finally {
+    inlineBidPending.delete(pendingKey);
+    if (form.isConnected) lockForm(form, false);
+    // Navigation can recreate a busy row in a newer generation. Release its
+    // controls in this session, without applying an old result or notification.
+    if (epoch === state.sessionEpoch && state.page === "auctions" && !state.auctionId) for (const candidate of document.querySelectorAll('[data-form="inline-place-bid"]')) {
+      if (candidate.dataset.auction !== id || candidate === form) continue;
+      candidate.querySelectorAll('button,input').forEach(control => control.disabled = false);
+      candidate.querySelector('button[type="submit"]').textContent = candidate.closest('tr').querySelector('.auction-your-bid').textContent.trim() ? "Update" : "Bid";
+      applyAccessControls(candidate.parentElement);
+    }
+  }
+}
 function auctionResults(data, wishItemIds) {
   if (!data.auctions.length)
     return (
@@ -1973,15 +2036,15 @@ function auctionResults(data, wishItemIds) {
           : "An officer will publish loot here. You can also change the filters to review closed auctions.",
       )
     );
-  return `${auctionPagination(data)}${auctionMobileSorting()}<div class="auction-table-wrap"><table class="auction-table"><caption class="auction-visually-hidden">Guild auction items, copy counts, your bids and deadlines</caption><colgroup><col class="auction-id-column"><col><col class="auction-copies-column"><col class="auction-bid-column"><col class="auction-time-column"><col class="auction-actions-column"></colgroup><thead><tr>${[
-    ["itemId", "Item ID"],
+  const inline = data.auctions.some((auction) => auction.status === "open");
+  return `${auctionPagination(data)}${auctionMobileSorting()}<div class="auction-table-wrap"><table class="auction-table ${inline ? "auction-inline-table" : ""}"><caption class="auction-visually-hidden">Guild auction items, copy counts, your bids and deadlines</caption><colgroup>${inline ? "" : '<col class="auction-id-column">'}<col><col class="auction-copies-column"><col class="auction-bid-column">${inline ? '<col class="auction-entry-column">' : ""}<col class="auction-time-column"><col class="auction-actions-column"></colgroup><thead><tr>${[
+    ...(inline ? [] : [["itemId", "Item ID"]]),
     ["itemName", "Item"],
     ["quantity", "Copies"],
     ["ownBid", "Your Bid"],
-    ["closesAt", "Time left"],
   ]
     .map(([key, label]) => auctionSortHeading(key, label))
-    .join("")}<th scope="col">Actions</th></tr></thead><tbody>${data.auctions
+    .join("")}${inline ? '<th scope="col">Place bid</th>' : ""}${auctionSortHeading("closesAt", "Time left")}<th scope="col">Actions</th></tr></thead><tbody>${data.auctions
     .map((auction) => {
       const personalBid =
         auction.status === "cancelled" ? null : auction.ownBid;
@@ -1993,6 +2056,7 @@ function auctionResults(data, wishItemIds) {
             ? "ALL"
             : metadataList(auction.classes);
       const metadata = [
+        inline ? `<span class="auction-inline-id">ID ${escape(auction.itemId)}</span>` : "",
         `<span class="auction-slot" title="Equipment slots: ${escape(metadataList(auction.slots))}">${escape(metadataList(auction.slots))}</span>`,
         `<span class="auction-class-summary" title="Usable classes: ${escape(metadataList(auction.classes))}">${escape(classes)}</span>`,
         auction.status === "open"
@@ -2020,7 +2084,7 @@ function auctionResults(data, wishItemIds) {
               month: "2-digit",
               day: "2-digit",
             });
-      return `<tr class="auction-row ${[wanted ? "wish-listed" : "", own ? "bid-placed" : ""].filter(Boolean).join(" ")}"><td class="auction-item-id" data-label="Item ID">${escape(auction.itemId)}</td><td class="auction-item-cell" data-label="Item">${auctionItemLabel(auction)}<div class="auction-row-meta">${metadata}</div></td><td class="auction-copy-count" data-label="Copies">${escape(number(auction.quantity))}</td><td class="auction-your-bid" data-label="Your Bid">${personalBid ? `<strong>${escape(number(personalBid.amount))}</strong> <small>DKP</small>` : ""}</td><td class="auction-time" data-label="Time left">${auction.status === "open" ? countdown(auction.closesAt, true) : `<time datetime="${escape(auction.closesAt)}" title="${escape(exactTime(auction.closesAt))}">${escape(closedLabel)}</time>`}</td><td class="auction-row-actions" data-label="Actions"><div class="auction-pill-actions"><button type="button" class="auction-view-button ${auction.status === "open" ? "primary" : ""}" data-action="open-auction" data-auction="${escape(auction.id)}">${auction.status === "open" ? "View / bid" : auction.status === "cancelled" ? "Cancellation" : "Results"}</button>${auctionControlsPill(auction)}</div></td></tr>`;
+      return `<tr data-auction-row="${escape(auction.id)}" class="auction-row ${[wanted ? "wish-listed" : "", own ? "bid-placed" : ""].filter(Boolean).join(" ")}">${inline ? "" : `<td class="auction-item-id" data-label="Item ID">${escape(auction.itemId)}</td>`}<td class="auction-item-cell" data-label="Item">${auctionItemLabel(auction)}<div class="auction-row-meta">${metadata}</div></td><td class="auction-copy-count" data-label="Copies">${escape(number(auction.quantity))}</td><td class="auction-your-bid" data-label="Your Bid">${personalBid ? `<strong>${escape(number(personalBid.amount))}</strong> <small>DKP</small>` : ""}</td>${inline ? `<td class="auction-inline-cell" data-label="Place bid">${inlineAuctionBidForm(auction)}</td>` : ""}<td class="auction-time" data-label="Time left">${auction.status === "open" ? countdown(auction.closesAt, true) : `<time datetime="${escape(auction.closesAt)}" title="${escape(exactTime(auction.closesAt))}">${escape(closedLabel)}</time>`}</td><td class="auction-row-actions" data-label="Actions"><div class="auction-pill-actions"><button type="button" class="auction-view-button ${auction.status === "open" ? "primary" : ""}" data-action="open-auction" data-auction="${escape(auction.id)}">${auction.status === "open" ? "Details" : auction.status === "cancelled" ? "Cancellation" : "Results"}</button>${auctionControlsPill(auction)}</div></td></tr>`;
     })
     .join("")}</tbody></table></div>${auctionPagination(data)}`;
 }
@@ -2081,8 +2145,14 @@ async function refreshAuctionFilters(form, version, focusContext = {}) {
     if (!current()) return;
     const restoreFocus =
       focusContext.element && document.activeElement === focusContext.element;
+    const activeInline = document.activeElement?.closest?.('[data-form="inline-place-bid"]');
+    const activeInlineId = activeInline?.dataset.auction;
     closeItemSurfaces();
+    const drafts = new Map([...results.querySelectorAll('[data-form="inline-place-bid"]')].filter(candidate => candidate.dataset.auction !== focusContext.skipInlineDraft).map(candidate => [candidate.dataset.auction, candidate.querySelector('[name="amount"]').value]));
     results.innerHTML = auctionResults(data, wishes);
+    results.querySelectorAll('[data-form="inline-place-bid"]').forEach(candidate => {
+      if (drafts.has(candidate.dataset.auction)) candidate.querySelector('[name="amount"]').value = drafts.get(candidate.dataset.auction);
+    });
     if (summary) summary.innerHTML = auctionBidSummary(data.activeBidSummary);
     applyAccessControls(results);
     startCountdowns();
@@ -2092,6 +2162,9 @@ async function refreshAuctionFilters(form, version, focusContext = {}) {
         ? target
         : $("[data-page-position]", results)
       )?.focus({ preventScroll: true });
+    } else if (activeInlineId) {
+      const restored = [...results.querySelectorAll('[data-form="inline-place-bid"]')].find(candidate => candidate.dataset.auction === activeInlineId)?.querySelector('[name="amount"]');
+      if (restored && !restored.disabled) restored.focus({preventScroll:true});
     }
     if (status)
       status.textContent = `${number(data.total ?? data.auctions.length)} matching auctions. Filters update automatically.`;
@@ -4826,6 +4899,10 @@ document.addEventListener("submit", async (event) => {
   const form = event.target.closest("[data-form]");
   if (!form) return;
   event.preventDefault();
+  if (form.dataset.form === "inline-place-bid") {
+    if (form.reportValidity()) await submitInlineAuctionBid(form);
+    return;
+  }
   if (form.dataset.form === "auth" && state.authPending) return;
   const ignoringLootRow =
     form.dataset.form === "edit-loot-row" && event.submitter?.name === "ignore";

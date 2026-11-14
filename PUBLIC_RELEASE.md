@@ -1,3 +1,12 @@
+# Guild Desk 0.15.0
+
+- Bid directly from Guild auctions with a separate new-amount field and Bid/Update button. Your Bid continues to show your accepted amount.
+- Saved bids stay sortable; item details/comparison and officer Controls remain separate. Open rows show the item ID beside the name to leave more room for readable names and bidding.
+- Saving preserves amounts entered in other visible rows and keeps the list on screen. Pending saves cannot be submitted twice, and leaving/returning to auctions releases pending controls correctly.
+- Desktop columns adapt to readable rows on smaller screens. Per-item current-DKP limits remain enforced by the existing server; no combined reservations or pricing changes.
+
+No schema change. This test build does not deploy hosting or restart your running preview.
+
 # Guild Desk 0.14.0
 
 - Compact EQ-style hover and side-by-side comparison windows: three stat columns, combined heroic values, effects and augment slots. Source/reference and difference tables expand when needed.

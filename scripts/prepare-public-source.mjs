@@ -37,7 +37,7 @@ for(const name of ['ci.yml','release.yml']){
  const info=await lstat(path.join(root,file));if(!info.isFile()||info.isSymbolicLink())throw Error('Missing safe workflow: '+file);records.push(file);
 }
 function publicText(text,file){
- let result=text.replace(/\r\n/g,'\n').replaceAll('DemoGuild_test','DemoGuild_test').replaceAll('DemoGuild_','DemoGuild_').replaceAll('_test','_test').replaceAll("'demoguild'","'demoguild'").replaceAll("'test'","'test'").replaceAll('Mainhero','Mainhero').replaceAll('Secondhero','Secondhero').replaceAll('mainhero','mainhero').replaceAll('secondhero','secondhero');
+ let result=text.replace(/\r\n/g,'\n').replaceAll('Mess_teek','DemoGuild_test').replaceAll('Mess_','DemoGuild_').replaceAll('_teek','_test').replaceAll("'mess'","'demoguild'").replaceAll("'teek'","'test'").replaceAll('Byun','Mainhero').replaceAll('Blitzer','Secondhero').replaceAll('byun','mainhero').replaceAll('blitzer','secondhero');
  if(file.endsWith('.md')||file.startsWith('tests/'))result=result.replace(/actual two supplied dumps/g,'synthetic two demo dumps').replace(/Three raw messages verified in the user's supplied EverQuest log\./g,'Three item-only chat protocol examples based on the verified format; no player roster or unrelated chat is included.').replace(/verified raw log/g,'item-only protocol example').replace(/user payloads/g,'item-only payloads');
  if(file==='CAPTURES.md')result=result.replace('Verified user example:','Synthetic example:').replace(/## Hosting limitation[\s\S]*?(?=\n## |$)/,'## Hosting compatibility\n\nThe persistent local server accepts the capture-scoped native API directly. Hosted authentication gates may redirect native requests before the application receives them. Native requests do not have browser cookies and never forward capture tokens across redirects. Verify an authorized reachable hosted API before claiming hosted companion compatibility. No authentication-gate bypass is provided.\n');
  return result;
@@ -45,10 +45,10 @@ function publicText(text,file){
 const files=new Map();
 for(const file of records)files.set(file,publicText(await readFile(path.join(root,file),'utf8'),file));
 const packageInfo=JSON.parse(files.get('package.json'));
-if(packageInfo.version!=='0.14.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
+if(packageInfo.version!=='0.15.0')throw Error('Review the public exporter and release notes before exporting a different release version.');
 packageInfo.scripts={...packageInfo.scripts,build:'node build.mjs --local',test:'node --test'};
 files.set('package.json',JSON.stringify(packageInfo,null,2)+'\n');
-files.set('README.md',`# Guild Desk 0.14.0
+files.set('README.md',`# Guild Desk 0.15.0
 
 Guild Desk is a standalone EverQuest guild DKP test application with accounts and approved mains/alts, attendance ticks, an exact DKP ledger, sealed auctions, boss loot drafts, item references, and a local log companion.
 
@@ -70,7 +70,11 @@ See local/README.md for database paths, backup and restore. Live database files 
 
 The server bundles to dist/server/index.js. A production host must supply a persistent DB binding and apply the numbered schema-only SQL migrations in drizzle in order. Host configuration and credentials are supplied separately. This snapshot makes no claim that a public repository, hosted deployment, outside security audit or cross-platform GitHub Actions run has already succeeded.
 
-## New in 0.14.0
+## New in 0.15.0
+
+Bid directly from Guild auctions: Your Bid shows the accepted amount; Place bid has a separate blank input and Bid/Update button. Item IDs sit beside names in open rows. Details/comparison and officer Controls stay separate. Whole-number current-main limits still apply individually, with no combined reservation. Visible drafts survive refreshes, duplicate in-flight saves are blocked, and leaving/returning during a save releases pending controls. No schema change.
+
+## Previous account and item improvements (0.14.0)
 
 Compact EQ-style item windows use three stat columns, heroic values beside base stats, visible effects/augment slots and collapsed reference/difference details. Hover and comparison layouts have less vertical padding.
 
@@ -136,7 +140,7 @@ Upload an items.txt.gz or items.txt dump in Item references. Use Inventory on yo
 
 ## Verification and releases
 
-CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.14.0 and release instructions.
+CI is configured to build and run the test suite on Windows and Linux with Node.js 24. Tags matching v* invoke a release build and package an allowlisted tracked-source snapshot plus the generated Worker. Release assets exclude databases, environment files, live logs, local companion state and private host configuration. See PUBLIC_RELEASE.md for version 0.15.0 and release instructions.
 
 API contracts: API.md, AUCTIONS.md, ADMIN.md, ITEMS.md, REPORTS.md, LOOT.md, CAPTURES.md, EQRESOURCE.md, OWNERSHIP.md and EQUIPMENT.md, ACCESS.md and AUDIT.md. Features and limitations should be reviewed before production use.
 `);
@@ -146,13 +150,13 @@ const extras=Array.from({length:27},(_,index)=>'Demochar'+letters(index));
 function artificialRoster(names){return names.map(name=>{const index=name==='Mainhero'?0:name==='Secondhero'?1:extras.indexOf(name)+2;return[name,'80',classes[index%classes.length],'Demo Member','','01/01/26','Demo Zone','Artificial example; not an ownership claim','','on','off',String(1000+index),'01/01/26','Artificial example; not an ownership claim',''].join('\t');}).join('\n')+'\n';}
 files.set('tests/fixtures/DemoGuild_test-20261111-180515(1).txt',artificialRoster(['Mainhero',...extras.slice(0,25)]));
 files.set('tests/fixtures/DemoGuild_test-20261111-182058(1).txt',artificialRoster(['Mainhero','Secondhero',...extras]));
-files.set('PUBLIC_SOURCE.json',JSON.stringify({version:'0.14.0',syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
+files.set('PUBLIC_SOURCE.json',JSON.stringify({version:packageInfo.version,syntheticSamples:true,attendanceRows:[26,29],distinctCharacters:29,includesGitHistory:false},null,2)+'\n');
 
 let inputIsPublic=false;try{inputIsPublic=JSON.parse(await readFile(path.join(root,'PUBLIC_SOURCE.json'),'utf8')).syntheticSamples===true;}catch{}
 for(const [file,text]of files){
  if(/[\uFFFD\u001a]/u.test(text))throw Error('Invalid replacement or SUB character in public source: '+file);
  if(/(?:^|\/)(?:\.git|\.openai|dist|outputs|data|logs|state|node_modules)(?:\/|$)/i.test(file)||/\.(?:sqlite|db|env|log|pcap)$/i.test(file))throw Error('Forbidden public file path: '+file);
- if(/git\.chatgpt-team\.site|C:\\Users\\|BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}/.test(text)||!inputIsPublic&&/\b(?:Mainhero|Secondhero)\b|DemoGuild_test/.test(text))throw Error('Potential private source content requires review: '+file);
+ if(/git\.chatgpt-team\.site|C:\\Users\\|BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}/.test(text)||!inputIsPublic&&/\b(?:Byun|Blitzer)\b|Mess_teek/.test(text))throw Error('Potential private source content requires review: '+file);
 }
 await mkdir(destination,{recursive:true});
 for(const [file,text]of files){const target=path.join(destination,file);await mkdir(path.dirname(target),{recursive:true});await writeFile(target,text,{encoding:'utf8',flag:'wx'});}

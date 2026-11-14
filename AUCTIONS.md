@@ -1,3 +1,7 @@
+## Inline list bidding (0.15.0)
+
+Guild auctions shows the accepted amount under Your Bid and a separate blank Place bid field. Enter a whole amount and press Bid or Update; Enter also submits. The same authenticated PUT endpoint and current approved-main limits apply. The saved amount changes only after acceptance. Item details, comparison, withdrawal and officer controls remain available. Other visible draft amounts survive list refreshes; drafts are not persisted across hidden pages or reloads.
+
 ## Officer controls and slot filtering (0.8)
 
 Auction-management writers can cancel an OPEN auction or complete it early for testing from Guild auctions. Auction details also cancel a named character bid. Reason, explicit confirmation and retry-safe receipts are required. Cancellation creates no awards/charges and cannot reverse a closed auction. Early completion preserves the original deadline and runs normal settlement; only separate award confirmation charges DKP. Sealed participation/amount privacy is retained until settlement, including cancelled auctions. The bid cancellation picker lists all approved mains rather than revealing bidders. Slot filters use publication-time item slots and support multi-slot items. See PUBLIC_RELEASE.md.
